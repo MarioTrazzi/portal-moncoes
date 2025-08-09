@@ -1,0 +1,306 @@
+// Schema do Sistema de Gestão de OS para Prefeitura
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// Enum para tipos de usuário
+enum UserRole {
+  FUNCIONARIO  // Funcionário que abre OS
+  TECNICO      // Técnico que executa OS
+  APROVADOR    // Aprovador de orçamentos
+  GESTOR       // Gestor com acesso a relatórios
+  ADMIN        // Administrador do sistema
+}
+
+// Enum para status das OS
+enum ServiceOrderStatus {
+  ABERTA           // OS aberta pelo funcionário
+  EM_ANALISE       // Em análise pelo técnico
+  AGUARDANDO_DESLOCAMENTO // Aguardando técnico se deslocar
+  EM_EXECUCAO      // Técnico executando
+  AGUARDANDO_MATERIAL // Aguardando material
+  AGUARDANDO_ORCAMENTO // Aguardando orçamentos
+  AGUARDANDO_APROVACAO // Aguardando aprovação de compra
+  MATERIAL_APROVADO // Material aprovado
+  FINALIZADA       // OS finalizada
+  CANCELADA        // OS cancelada
+}
+
+// Enum para prioridades
+enum Priority {
+  BAIXA
+  NORMAL
+  ALTA
+  URGENTE
+}
+
+// Enum para categorias de problemas
+enum ProblemCategory {
+  HARDWARE
+  SOFTWARE
+  REDE
+  IMPRESSORA
+  TELEFONIA
+  SISTEMA
+  OUTROS
+}
+
+// Enum para tipos de anexos
+enum AttachmentType {
+  IMAGE       // Imagem/foto
+  DOCUMENT    // Documento
+  VIDEO       // Vídeo
+  OTHER       // Outro tipo
+}
+
+// Enum para status de orçamentos
+enum QuoteStatus {
+  SOLICITADO
+  RECEBIDO
+  APROVADO
+  REJEITADO
+}
+
+// Modelo para departamentos/setores
+model Department {
+  id          String   @id @default(cuid())
+  name        String   @unique // Nome do setor (ex: "Secretaria de Educação")
+  description String?  // Descrição do setor
+  location    String   // Localização física (ex: "Prédio Principal")
+  building    String?  // Prédio específico
+  floor       String?  // Andar
+  responsible String?  // Responsável pelo setor
+  phone       String?  // Telefone do setor
+  email       String?  // Email do setor
+  active      Boolean  @default(true)
+  
+  // Relacionamentos
+  users       User[]   // Usuários do setor
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("departments")
+}
+
+// Modelo para usuários do sistema
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      UserRole
+  active    Boolean  @default(true)
+  
+  // Dados do funcionário público
+  registration  String?  @unique // Matrícula
+  phone         String?
+  position      String?  // Cargo
+  
+  // Relacionamento com departamento
+  departmentId  String?
+  department    Department? @relation(fields: [departmentId], references: [id])
+  
+  // Localização específica do usuário (sala específica)
+  room          String?  // Sala onde trabalha
+  
+  // Relacionamentos
+  serviceOrdersCreated  ServiceOrder[] @relation("CreatedBy")
+  serviceOrdersAssigned ServiceOrder[] @relation("AssignedTo")
+  quotes               Quote[]
+  auditLogs            AuditLog[]
+  notifications        Notification[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("users")
+}
+
+// Modelo para fornecedores
+model Supplier {
+  id       String  @id @default(cuid())
+  name     String
+  cnpj     String  @unique
+  email    String
+  phone    String
+  address  String?
+  contact  String  // Pessoa de contato
+  active   Boolean @default(true)
+  
+  // Categorias de produtos/serviços que fornece
+  categories String // JSON string de categorias
+  
+  // Relacionamentos
+  quotes Quote[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("suppliers")
+}
+
+// Modelo principal para Ordens de Serviço
+model ServiceOrder {
+  id          String              @id @default(cuid())
+  number      String              @unique // Número sequencial da OS
+  title       String              // Título/resumo do problema
+  description String              // Descrição detalhada
+  category    ProblemCategory
+  priority    Priority            @default(NORMAL)
+  status      ServiceOrderStatus  @default(ABERTA)
+  
+  // Usuários envolvidos
+  createdById String
+  createdBy   User                @relation("CreatedBy", fields: [createdById], references: [id])
+  assignedToId String?
+  assignedTo  User?               @relation("AssignedTo", fields: [assignedToId], references: [id])
+  
+  // Datas importantes
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  assignedAt      DateTime?       // Quando foi atribuída
+  startedAt       DateTime?       // Quando técnico iniciou
+  completedAt     DateTime?       // Quando foi finalizada
+  scheduledAt     DateTime?       // Agendamento
+  
+  // Informações técnicas
+  diagnosis       String?         // Diagnóstico do técnico
+  solution        String?         // Solução aplicada
+  observations    String?         // Observações gerais
+  requiresMaterial Boolean        @default(false)
+  estimatedHours  Float?          // Horas estimadas
+  actualHours     Float?          // Horas reais
+  
+  // Relacionamentos
+  quotes       Quote[]
+  attachments  Attachment[]
+  auditLogs    AuditLog[]
+  notifications Notification[]
+  
+  @@map("service_orders")
+}
+
+// Modelo para orçamentos
+model Quote {
+  id              String      @id @default(cuid())
+  serviceOrderId  String
+  serviceOrder    ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  supplierId      String
+  supplier        Supplier    @relation(fields: [supplierId], references: [id])
+  
+  // Dados do orçamento
+  items           Json        // Array de itens do orçamento
+  totalValue      Float       // Valor total
+  deliveryTime    Int?        // Prazo de entrega em dias
+  validity        DateTime?   // Validade do orçamento
+  observations    String?
+  
+  status          QuoteStatus @default(SOLICITADO)
+  
+  // Quem solicitou/aprovou
+  requestedById   String
+  requestedBy     User        @relation(fields: [requestedById], references: [id])
+  approvedAt      DateTime?
+  rejectedAt      DateTime?
+  rejectionReason String?
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  
+  @@map("quotes")
+}
+
+// Modelo para anexos/arquivos
+model Attachment {
+  id              String          @id @default(cuid())
+  serviceOrderId  String
+  serviceOrder    ServiceOrder    @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  
+  filename        String
+  originalName    String
+  mimeType        String
+  size            Int
+  path            String          // Caminho do arquivo
+  type            AttachmentType  @default(OTHER) // Tipo do anexo
+  description     String?         // Descrição do anexo
+  
+  uploadedAt      DateTime        @default(now())
+  
+  @@map("attachments")
+}
+
+// Modelo para logs de auditoria
+model AuditLog {
+  id              String       @id @default(cuid())
+  serviceOrderId  String?
+  serviceOrder    ServiceOrder? @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User         @relation(fields: [userId], references: [id])
+  
+  action          String       // Ação realizada
+  details         Json?        // Detalhes da ação
+  ipAddress       String?
+  userAgent       String?
+  
+  createdAt       DateTime     @default(now())
+  
+  @@map("audit_logs")
+}
+
+// Modelo para configurações do sistema
+model SystemConfig {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+  
+  updatedAt DateTime @updatedAt
+  
+  @@map("system_config")
+}
+
+// Enum para tipos de notificação
+enum NotificationType {
+  NEW_OS          // Nova OS criada
+  OS_UPDATED      // OS atualizada
+  OS_ASSIGNED     // OS atribuída a técnico
+  OS_COMPLETED    // OS finalizada
+  OS_CANCELLED    // OS cancelada
+  MATERIAL_NEEDED // Material necessário
+  URGENT          // Notificação urgente
+  INFO            // Informação geral
+}
+
+// Modelo para notificações do sistema
+model Notification {
+  id          String           @id @default(cuid())
+  type        NotificationType
+  title       String
+  message     String
+  read        Boolean          @default(false)
+  
+  // Relacionamento com usuário que deve receber a notificação
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Relacionamento opcional com OS
+  serviceOrderId String?
+  serviceOrder   ServiceOrder? @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  
+  // URL para ação (opcional)
+  actionUrl   String?
+  actionText  String?
+  
+  // Metadados
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  
+  @@map("notifications")
+}
