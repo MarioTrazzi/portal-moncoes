@@ -9,11 +9,11 @@ export async function POST(request: NextRequest) {
     const testUser = searchParams.get('testUser') || 'funcionario'
     
     const testUserMapping = {
-      funcionario: 'maria.educacao@prefeitura.gov.br',  // FUNCIONARIO
-      tecnico: 'carlos.tech@prefeitura.gov.br',         // TECNICO  
+      funcionario: 'funcionario@prefeitura.gov.br',  // FUNCIONARIO
+      tecnico: 'tecnico@prefeitura.gov.br',         // TECNICO  
       admin: 'admin@prefeitura.gov.br',                 // ADMIN
       gestor: 'gestor@prefeitura.gov.br',              // GESTOR
-      aprovador: 'ana.rh@prefeitura.gov.br'            // APROVADOR
+      aprovador: 'admin@prefeitura.gov.br'            // APROVADOR
     }
     
     const userEmail = testUserMapping[testUser as keyof typeof testUserMapping] || testUserMapping.funcionario

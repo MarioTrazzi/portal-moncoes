@@ -29,7 +29,7 @@ export async function DELETE(
 
     // Por enquanto, usar um usuário padrão (depois implementaremos autenticação)
     const defaultUser = await prisma.user.findUnique({
-      where: { email: 'maria.educacao@prefeitura.gov.br' }
+      where: { email: 'funcionario@prefeitura.gov.br' }
     })
 
     if (!defaultUser) {

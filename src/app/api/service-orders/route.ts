@@ -17,11 +17,11 @@ export async function GET(request: NextRequest) {
     const testUser = searchParams.get('testUser') || 'funcionario'
     
     const testUserMapping = {
-      funcionario: 'maria.educacao@prefeitura.gov.br',  // FUNCIONARIO
-      tecnico: 'carlos.tech@prefeitura.gov.br',         // TECNICO  
+      funcionario: 'funcionario@prefeitura.gov.br',  // FUNCIONARIO
+      tecnico: 'tecnico@prefeitura.gov.br',         // TECNICO  
       admin: 'admin@prefeitura.gov.br',                 // ADMIN
       gestor: 'gestor@prefeitura.gov.br',              // GESTOR
-      aprovador: 'ana.rh@prefeitura.gov.br'            // APROVADOR
+      aprovador: 'admin@prefeitura.gov.br'            // APROVADOR
     }
     
     const userEmail = testUserMapping[testUser as keyof typeof testUserMapping] || testUserMapping.funcionario
@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
 
     // Por enquanto, usar um usuário padrão (depois implementaremos autenticação)
     const defaultUser = await prisma.user.findUnique({
-      where: { email: 'maria.educacao@prefeitura.gov.br' },
+      where: { email: 'funcionario@prefeitura.gov.br' },
       include: { department: true }
     })
 
