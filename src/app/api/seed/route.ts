@@ -6,13 +6,38 @@ const prisma = new PrismaClient()
 
 export async function POST(req: NextRequest) {
   try {
-    // Verificar se já existem usuários
-    const existingUsers = await prisma.user.count()
-    if (existingUsers > 0) {
+    // Verificar se as tabelas existem tentando uma consulta simples
+    console.log('Verificando conexão com banco...')
+    
+    // Tentar criar as tabelas se não existirem (usando $executeRaw)
+    try {
+      await prisma.$executeRaw`SELECT 1`
+      console.log('Conexão estabelecida')
+    } catch (error) {
+      console.log('Erro de conexão:', error)
       return NextResponse.json({ 
-        message: 'Banco já possui dados, seed não executado',
-        usersCount: existingUsers 
-      })
+        error: 'Erro de conexão com banco', 
+        details: 'Verifique se as variáveis de ambiente estão configuradas'
+      }, { status: 500 })
+    }
+
+    // Verificar se já existem usuários
+    let existingUsers = 0
+    try {
+      existingUsers = await prisma.user.count()
+      if (existingUsers > 0) {
+        return NextResponse.json({ 
+          message: 'Banco já possui dados, seed não executado',
+          usersCount: existingUsers 
+        })
+      }
+    } catch (error) {
+      console.log('Tabelas ainda não existem, precisamos configurar o banco primeiro')
+      return NextResponse.json({ 
+        error: 'Tabelas não encontradas', 
+        details: 'Execute `prisma db push` primeiro ou configure as migrações',
+        suggestion: 'As tabelas do banco ainda não foram criadas. Configure as variáveis de ambiente na Vercel e execute prisma db push'
+      }, { status: 400 })
     }
 
     // Criar departamento padrão
