@@ -133,71 +133,130 @@ export async function GET(request: NextRequest) {
 }
 
 // POST - Criar nova OS
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
-    const formData = await request.formData()
+    console.log('=== INÍCIO POST SERVICE ORDER ===')
     
-    // Extrair campos básicos
-    const title = formData.get('title') as string
-    const description = formData.get('description') as string
-    const category = formData.get('category') as string
-    const priority = formData.get('priority') as string
-    const specificLocation = formData.get('specificLocation') as string | null
+    // Log inicial para debug
+    console.log('Headers:', Object.fromEntries(request.headers.entries()))
 
-    // Validar campos obrigatórios
+    const formData = await request.formData()
+    console.log('FormData recebido, processando...')
+
+    // Extrair dados do formulário
+    const title = formData.get("title") as string
+    const description = formData.get("description") as string
+    const category = formData.get("category") as string
+    const priority = formData.get("priority") as string
+
+    console.log('Dados extraídos:', { title, description, category, priority })
+
+    // Validação básica
     if (!title || !description || !category || !priority) {
+      console.log('Erro de validação - campos obrigatórios')
       return NextResponse.json(
-        { error: "Campos obrigatórios não preenchidos" },
+        { error: "Todos os campos são obrigatórios" },
         { status: 400 }
       )
     }
 
-    // Por enquanto, usar um usuário padrão (depois implementaremos autenticação)
-    const defaultUser = await prisma.user.findUnique({
-      where: { email: 'funcionario@prefeitura.gov.br' },
-      include: { department: true }
-    })
-
-    if (!defaultUser) {
+    // Validar enums
+    const validCategories = ['HARDWARE', 'SOFTWARE', 'NETWORK', 'PRINTER', 'OTHER']
+    const validPriorities = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
+    
+    if (!validCategories.includes(category)) {
+      console.log('Categoria inválida:', category)
       return NextResponse.json(
-        { error: "Usuário não encontrado" },
-        { status: 404 }
+        { error: `Categoria inválida: ${category}` },
+        { status: 400 }
+      )
+    }
+    
+    if (!validPriorities.includes(priority)) {
+      console.log('Prioridade inválida:', priority)
+      return NextResponse.json(
+        { error: `Prioridade inválida: ${priority}` },
+        { status: 400 }
+      )
+    }
+
+    console.log('Validação passou')
+
+    // Por enquanto, usar um usuário padrão (depois implementaremos autenticação)
+    console.log('Buscando usuário padrão...')
+    
+    let defaultUser
+    try {
+      defaultUser = await prisma.user.findUnique({
+        where: { email: 'funcionario@prefeitura.gov.br' },
+        include: { department: true }
+      })
+
+      if (!defaultUser) {
+        console.log('Usuário não encontrado!')
+        return NextResponse.json(
+          { error: "Usuário não encontrado" },
+          { status: 404 }
+        )
+      }
+
+      console.log('Usuário encontrado:', defaultUser.id)
+    } catch (dbError) {
+      console.error('Erro ao buscar usuário:', dbError)
+      return NextResponse.json(
+        { error: "Erro ao buscar usuário" },
+        { status: 500 }
       )
     }
 
     // Gerar número sequencial da OS
-    const currentYear = new Date().getFullYear()
-    const lastOrder = await prisma.serviceOrder.findFirst({
-      where: {
-        number: {
-          startsWith: `OS-${currentYear}-`,
+    console.log('Gerando número da OS...')
+    
+    let orderNumber
+    try {
+      const currentYear = new Date().getFullYear()
+      const lastOrder = await prisma.serviceOrder.findFirst({
+        where: {
+          number: {
+            startsWith: `OS-${currentYear}-`,
+          },
         },
-      },
-      orderBy: {
-        number: "desc",
-      },
-    })
+        orderBy: {
+          number: "desc",
+        },
+      })
 
-    let nextNumber = 1
-    if (lastOrder) {
-      const lastNumber = parseInt(lastOrder.number.split("-")[2])
-      nextNumber = lastNumber + 1
+      let nextNumber = 1
+      if (lastOrder) {
+        const lastNumber = parseInt(lastOrder.number.split("-")[2])
+        nextNumber = lastNumber + 1
+      }
+
+      orderNumber = `OS-${currentYear}-${nextNumber.toString().padStart(3, "0")}`
+      console.log('Número da OS gerado:', orderNumber)
+    } catch (numberError) {
+      console.error('Erro ao gerar número da OS:', numberError)
+      return NextResponse.json(
+        { error: "Erro ao gerar número da OS" },
+        { status: 500 }
+      )
     }
 
-    const orderNumber = `OS-${currentYear}-${nextNumber.toString().padStart(3, "0")}`
-
     // Criar a OS
-    const serviceOrder = await prisma.serviceOrder.create({
-      data: {
-        title,
-        description,
-        category: category as any,
-        priority: priority as any,
-        number: orderNumber,
-        createdById: defaultUser.id,
-      },
-      include: {
-        createdBy: {
+    console.log('Criando OS no banco...')
+    let serviceOrder
+    try {
+      serviceOrder = await prisma.serviceOrder.create({
+        data: {
+          title,
+          description,
+          category: category as any,
+          priority: priority as any,
+          number: orderNumber,
+          createdById: defaultUser.id,
+        },
+        include: {
+          createdBy: {
           select: {
             id: true,
             name: true,
@@ -213,84 +272,108 @@ export async function POST(request: NextRequest) {
         },
       },
     })
-
-    // Processar arquivos se existirem
-    const uploadedFiles: any[] = []
-    
-    // Criar diretório de uploads se não existir
-    const uploadsDir = join(process.cwd(), 'uploads', 'service-orders', serviceOrder.id)
-    await mkdir(uploadsDir, { recursive: true })
-
-    // Processar imagens
-    const images = formData.getAll('images') as File[]
-    for (const file of images) {
-      if (file.size > 0) {
-        const fileName = `${randomUUID()}-${file.name}`
-        const filePath = join(uploadsDir, fileName)
-        
-        const bytes = await file.arrayBuffer()
-        await writeFile(filePath, Buffer.from(bytes))
-        
-        const attachment = await prisma.attachment.create({
-          data: {
-            serviceOrderId: serviceOrder.id,
-            filename: fileName,
-            originalName: file.name,
-            mimeType: file.type,
-            size: file.size,
-            path: `/uploads/service-orders/${serviceOrder.id}/${fileName}`,
-            type: AttachmentType.IMAGE,
-          }
-        })
-        
-        uploadedFiles.push(attachment)
-      }
+    console.log('OS criada com sucesso:', serviceOrder.id)
+    } catch (createError) {
+      console.error('Erro ao criar OS:', createError)
+      return NextResponse.json(
+        { error: "Erro ao criar OS" },
+        { status: 500 }
+      )
     }
 
-    // Processar documentos
-    const documents = formData.getAll('documents') as File[]
-    for (const file of documents) {
-      if (file.size > 0) {
-        const fileName = `${randomUUID()}-${file.name}`
-        const filePath = join(uploadsDir, fileName)
-        
-        const bytes = await file.arrayBuffer()
-        await writeFile(filePath, Buffer.from(bytes))
-        
-        const attachment = await prisma.attachment.create({
-          data: {
-            serviceOrderId: serviceOrder.id,
-            filename: fileName,
-            originalName: file.name,
-            mimeType: file.type,
-            size: file.size,
-            path: `/uploads/service-orders/${serviceOrder.id}/${fileName}`,
-            type: AttachmentType.DOCUMENT,
-          }
-        })
-        
-        uploadedFiles.push(attachment)
+    // Processar arquivos se existirem
+    console.log('Processando arquivos...')
+    const uploadedFiles: any[] = []
+    
+    try {
+      // Criar diretório de uploads se não existir
+      const uploadsDir = join(process.cwd(), 'uploads', 'service-orders', serviceOrder.id)
+      await mkdir(uploadsDir, { recursive: true })
+
+      // Processar imagens
+      const images = formData.getAll('images') as File[]
+      for (const file of images) {
+        if (file.size > 0) {
+          const fileName = `${randomUUID()}-${file.name}`
+          const filePath = join(uploadsDir, fileName)
+          
+          const bytes = await file.arrayBuffer()
+          await writeFile(filePath, Buffer.from(bytes))
+          
+          const attachment = await prisma.attachment.create({
+            data: {
+              serviceOrderId: serviceOrder.id,
+              filename: fileName,
+              originalName: file.name,
+              mimeType: file.type,
+              size: file.size,
+              path: `/uploads/service-orders/${serviceOrder.id}/${fileName}`,
+              type: AttachmentType.IMAGE,
+            }
+          })
+          
+          uploadedFiles.push(attachment)
+        }
       }
+
+      // Processar documentos
+      const documents = formData.getAll('documents') as File[]
+      for (const file of documents) {
+        if (file.size > 0) {
+          const fileName = `${randomUUID()}-${file.name}`
+          const filePath = join(uploadsDir, fileName)
+          
+          const bytes = await file.arrayBuffer()
+          await writeFile(filePath, Buffer.from(bytes))
+          
+          const attachment = await prisma.attachment.create({
+            data: {
+              serviceOrderId: serviceOrder.id,
+              filename: fileName,
+              originalName: file.name,
+              mimeType: file.type,
+              size: file.size,
+              path: `/uploads/service-orders/${serviceOrder.id}/${fileName}`,
+              type: AttachmentType.DOCUMENT,
+            }
+          })
+          
+          uploadedFiles.push(attachment)
+        }
+      }
+      console.log(`Processados ${uploadedFiles.length} arquivos`)
+    } catch (fileError) {
+      console.error('Erro ao processar arquivos:', fileError)
+      // Continuar mesmo se houver erro com arquivos
     }
 
     // Log de auditoria
-    await prisma.auditLog.create({
-      data: {
-        serviceOrderId: serviceOrder.id,
-        userId: defaultUser.id,
-        action: "OS_CREATED",
-        details: {
-          orderNumber: serviceOrder.number,
-          title: serviceOrder.title,
-          attachmentsCount: uploadedFiles.length,
+    console.log('Criando log de auditoria...')
+    try {
+      await prisma.auditLog.create({
+        data: {
+          serviceOrderId: serviceOrder.id,
+          userId: defaultUser.id,
+          action: "OS_CREATED",
+          details: {
+            orderNumber: serviceOrder.number,
+            title: serviceOrder.title,
+            attachmentsCount: uploadedFiles.length,
+          },
         },
-      },
-    })
+      })
+      console.log('Log de auditoria criado')
+    } catch (auditError) {
+      console.error('Erro ao criar log de auditoria:', auditError)
+      // Continuar mesmo se houver erro com auditoria
+    }
 
     // Criar notificações para técnicos sobre nova OS
     try {
-      const notificationCount = await NotificationService.notifyNewServiceOrder(serviceOrder.id)
-      console.log(`Criadas ${notificationCount} notificações para técnicos`)
+      // Temporariamente desabilitado para debug
+      // const notificationCount = await NotificationService.notifyNewServiceOrder(serviceOrder.id)
+      // console.log(`Criadas ${notificationCount} notificações para técnicos`)
+      console.log('Notificações desabilitadas temporariamente')
     } catch (error) {
       console.error('Erro ao criar notificações:', error)
       // Não falhar a criação da OS por causa das notificações
