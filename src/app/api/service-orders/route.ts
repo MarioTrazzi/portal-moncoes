@@ -161,13 +161,13 @@ export async function POST(request: Request) {
     }
 
     // Validar enums
-    const validCategories = ['HARDWARE', 'SOFTWARE', 'NETWORK', 'PRINTER', 'OTHER']
-    const validPriorities = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
+    const validCategories = ['HARDWARE', 'SOFTWARE', 'REDE', 'IMPRESSORA', 'TELEFONIA', 'SISTEMA', 'OUTROS']
+    const validPriorities = ['BAIXA', 'NORMAL', 'ALTA', 'URGENTE']
     
     if (!validCategories.includes(category)) {
       console.log('Categoria inválida:', category)
       return NextResponse.json(
-        { error: `Categoria inválida: ${category}` },
+        { error: `Categoria inválida: ${category}. Válidas: ${validCategories.join(', ')}` },
         { status: 400 }
       )
     }
@@ -175,7 +175,7 @@ export async function POST(request: Request) {
     if (!validPriorities.includes(priority)) {
       console.log('Prioridade inválida:', priority)
       return NextResponse.json(
-        { error: `Prioridade inválida: ${priority}` },
+        { error: `Prioridade inválida: ${priority}. Válidas: ${validPriorities.join(', ')}` },
         { status: 400 }
       )
     }
