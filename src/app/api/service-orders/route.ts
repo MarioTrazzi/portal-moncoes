@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
     ])
 
     return NextResponse.json({
-      data: serviceOrders,
+      serviceOrders,
       pagination: {
         page,
         limit,
