@@ -2,12 +2,12 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { NotificationSystem } from "@/components/notifications/notification-system"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { useTestUser } from "@/contexts/test-user-context"
+import { useAuth } from "@/contexts/auth-context"
 import { 
   LayoutDashboard, 
   FileText, 
@@ -103,34 +103,36 @@ interface HeaderProps {
 }
 
 export function Header({ className }: HeaderProps) {
-  const { currentTestUser, setCurrentTestUser } = useTestUser()
+  const { user, logout } = useAuth()
+  const router = useRouter()
+  
+  const handleLogout = () => {
+    logout()
+    router.push('/login')
+  }
   
   return (
     <div className={cn("border-b", className)}>
       <div className="flex h-16 items-center px-4">
-        {/* Seletor de usuário de teste */}
+        {/* Informações do usuário logado */}
         <div className="flex items-center space-x-2">
-          <span className="text-sm text-muted-foreground">Usuário:</span>
-          <select 
-            value={currentTestUser} 
-            onChange={(e) => setCurrentTestUser(e.target.value)}
-            className="text-sm border rounded px-2 py-1"
-          >
-            <option value="funcionario">Funcionário</option>
-            <option value="tecnico">Técnico</option>
-            <option value="admin">Admin</option>
-            <option value="gestor">Gestor</option>
-            <option value="aprovador">Aprovador</option>
-          </select>
+          <span className="text-sm text-muted-foreground">
+            Bem-vindo, <strong>{user?.name}</strong>
+          </span>
+          {user?.department && (
+            <span className="text-xs text-muted-foreground">
+              • {user.department.name}
+            </span>
+          )}
         </div>
         
         <div className="ml-auto flex items-center space-x-4">
           <Button variant="ghost" size="icon">
             <Search className="h-4 w-4" />
           </Button>
-          <NotificationSystem testUser={currentTestUser} />
+          <NotificationSystem />
           <ThemeToggle />
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="icon" onClick={handleLogout}>
             <LogOut className="h-4 w-4" />
           </Button>
         </div>

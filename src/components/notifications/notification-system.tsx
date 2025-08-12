@@ -32,10 +32,9 @@ interface Notification {
 
 interface NotificationSystemProps {
   className?: string
-  testUser?: string
 }
 
-export function NotificationSystem({ className, testUser = 'funcionario' }: NotificationSystemProps) {
+export function NotificationSystem({ className }: NotificationSystemProps) {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [isOpen, setIsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -44,7 +43,7 @@ export function NotificationSystem({ className, testUser = 'funcionario' }: Noti
   const fetchNotifications = async () => {
     try {
       setIsLoading(true)
-      const url = `/api/notifications?testUser=${testUser}`
+      const url = `/api/notifications`
       const response = await fetch(url)
       
       if (response.ok) {
@@ -59,10 +58,10 @@ export function NotificationSystem({ className, testUser = 'funcionario' }: Noti
     }
   }
 
-  // Recarregar notificações quando o usuário de teste mudar
+  // Recarregar notificações quando o componente montar
   useEffect(() => {
     fetchNotifications()
-  }, [testUser])
+  }, [])
 
   const markAsRead = async (notificationId: string) => {
     try {

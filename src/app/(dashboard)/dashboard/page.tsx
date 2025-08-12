@@ -1,6 +1,5 @@
 "use client"
 
-import { useState, useEffect } from 'react'
 import { RealtimeStats } from '@/components/dashboard/realtime-stats'
 import { RecentOrders } from '@/components/dashboard/recent-orders'
 import { PerformanceCharts } from '@/components/dashboard/performance-charts'
@@ -12,29 +11,6 @@ import { Plus, ArrowRight, Users, Wrench, FileText, BarChart3, RefreshCw } from 
 import { UserRole } from '@prisma/client'
 import { useAuth } from '@/contexts/auth-context'
 import Link from 'next/link'
-
-interface UserData {
-  id: string
-  name: string
-  email: string
-  role: UserRole
-  department?: {
-    name: string
-    location: string
-  }
-}
-
-interface UserPermissions {
-  canViewAllOrders: boolean
-  canCreateOrders: boolean
-  canEditOrders: boolean
-  canDeleteOrders: boolean
-  canManageUsers: boolean
-  canManageDepartments: boolean
-  canApproveQuotes: boolean
-  canViewReports: boolean
-  canManageSuppliers: boolean
-}
 
 export default function DashboardPage() {
   const { user, permissions, loading } = useAuth()
