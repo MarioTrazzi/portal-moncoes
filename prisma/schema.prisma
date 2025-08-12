@@ -21,16 +21,21 @@ enum UserRole {
 
 // Enum para status das OS
 enum ServiceOrderStatus {
-  ABERTA           // OS aberta pelo funcionário
-  EM_ANALISE       // Em análise pelo técnico
-  AGUARDANDO_DESLOCAMENTO // Aguardando técnico se deslocar
-  EM_EXECUCAO      // Técnico executando
-  AGUARDANDO_MATERIAL // Aguardando material
-  AGUARDANDO_ORCAMENTO // Aguardando orçamentos
-  AGUARDANDO_APROVACAO // Aguardando aprovação de compra
-  MATERIAL_APROVADO // Material aprovado
-  FINALIZADA       // OS finalizada
-  CANCELADA        // OS cancelada
+  ABERTA                    // OS aberta pelo funcionário
+  EM_ANALISE               // Em análise pelo técnico
+  AGUARDANDO_DESLOCAMENTO  // Aguardando técnico se deslocar
+  EM_EXECUCAO              // Técnico executando
+  AGUARDANDO_MATERIAL      // Aguardando material
+  SOLICITAR_ORCAMENTO      // Técnico preencheu necessidade de material
+  AGUARDANDO_ORCAMENTO     // Aguardando orçamentos dos fornecedores
+  ORCAMENTOS_RECEBIDOS     // Orçamentos recebidos, aguardando aprovação
+  AGUARDANDO_APROVACAO     // Aguardando aprovação de compra
+  MATERIAL_APROVADO        // Material aprovado pelo gestor
+  AGUARDANDO_ASSINATURA    // Aguardando assinatura do prefeito
+  COMPRA_AUTORIZADA        // Compra autorizada, comprando material
+  MATERIAL_RECEBIDO        // Material recebido, retorna para técnico
+  FINALIZADA               // OS finalizada
+  CANCELADA                // OS cancelada
 }
 
 // Enum para prioridades
@@ -62,10 +67,22 @@ enum AttachmentType {
 
 // Enum para status de orçamentos
 enum QuoteStatus {
-  SOLICITADO
-  RECEBIDO
-  APROVADO
-  REJEITADO
+  SOLICITADO       // Orçamento solicitado para fornecedor
+  RECEBIDO         // Orçamento recebido do fornecedor
+  EM_ANALISE       // Orçamento em análise pelo aprovador
+  APROVADO         // Orçamento aprovado
+  REJEITADO        // Orçamento rejeitado
+  EXPIRADO         // Orçamento expirado
+}
+
+// Enum para status de pedidos de compra
+enum PurchaseOrderStatus {
+  PENDENTE         // Aguardando assinatura
+  ASSINADO         // Assinado pelo prefeito
+  ENVIADO          // Enviado ao fornecedor
+  CONFIRMADO       // Confirmado pelo fornecedor
+  ENTREGUE         // Material entregue
+  CANCELADO        // Pedido cancelado
 }
 
 // Modelo para departamentos/setores
@@ -112,11 +129,14 @@ model User {
   room          String?  // Sala onde trabalha
   
   // Relacionamentos
-  serviceOrdersCreated  ServiceOrder[] @relation("CreatedBy")
-  serviceOrdersAssigned ServiceOrder[] @relation("AssignedTo")
-  quotes               Quote[]
-  auditLogs            AuditLog[]
-  notifications        Notification[]
+  serviceOrdersCreated     ServiceOrder[]  @relation("CreatedBy")
+  serviceOrdersAssigned    ServiceOrder[]  @relation("AssignedTo")
+  quotes                   Quote[]
+  auditLogs                AuditLog[]
+  notifications            Notification[]
+  approvedPurchaseOrders   PurchaseOrder[] @relation("ApprovedPurchaseOrders")
+  signedPurchaseOrders     PurchaseOrder[] @relation("SignedPurchaseOrders")
+  receivedPurchaseOrders   PurchaseOrder[] @relation("ReceivedPurchaseOrders")
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -172,18 +192,21 @@ model ServiceOrder {
   scheduledAt     DateTime?       // Agendamento
   
   // Informações técnicas
-  diagnosis       String?         // Diagnóstico do técnico
-  solution        String?         // Solução aplicada
-  observations    String?         // Observações gerais
-  requiresMaterial Boolean        @default(false)
-  estimatedHours  Float?          // Horas estimadas
-  actualHours     Float?          // Horas reais
+  diagnosis          String?         // Diagnóstico do técnico
+  solution           String?         // Solução aplicada
+  observations       String?         // Observações gerais
+  requiresMaterial   Boolean         @default(false)
+  materialDescription String?        // Descrição dos materiais necessários
+  materialJustification String?      // Justificativa da necessidade
+  estimatedHours     Float?          // Horas estimadas
+  actualHours        Float?          // Horas reais
   
   // Relacionamentos
-  quotes       Quote[]
-  attachments  Attachment[]
-  auditLogs    AuditLog[]
-  notifications Notification[]
+  quotes         Quote[]
+  attachments    Attachment[]
+  auditLogs      AuditLog[]
+  notifications  Notification[]
+  purchaseOrders PurchaseOrder[]
   
   @@map("service_orders")
 }
@@ -212,10 +235,53 @@ model Quote {
   rejectedAt      DateTime?
   rejectionReason String?
   
+  // Relacionamento com pedido de compra
+  purchaseOrder   PurchaseOrder?
+  
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
   
   @@map("quotes")
+}
+
+// Modelo para pedidos de compra
+model PurchaseOrder {
+  id              String               @id @default(cuid())
+  number          String               @unique // Número do pedido de compra
+  serviceOrderId  String
+  serviceOrder    ServiceOrder         @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  quoteId         String               @unique
+  quote           Quote                @relation(fields: [quoteId], references: [id])
+  
+  // Dados do pedido
+  totalValue      Float                // Valor total aprovado
+  items           Json                 // Itens do pedido
+  deliveryAddress String               // Endereço de entrega
+  observations    String?              // Observações do pedido
+  
+  // Status e aprovação
+  status          PurchaseOrderStatus  @default(PENDENTE)
+  approvedById    String?              // Quem aprovou (gestor)
+  approvedBy      User?                @relation("ApprovedPurchaseOrders", fields: [approvedById], references: [id])
+  approvedAt      DateTime?            // Quando foi aprovado
+  
+  // Assinatura digital/PDF
+  signedById      String?              // Prefeito que assinou
+  signedBy        User?                @relation("SignedPurchaseOrders", fields: [signedById], references: [id])
+  signedAt        DateTime?            // Quando foi assinado
+  signatureHash   String?              // Hash da assinatura digital (se usar gov.br)
+  pdfPath         String?              // Caminho do PDF gerado
+  
+  // Entrega
+  deliveredAt     DateTime?            // Quando foi entregue
+  receivedById    String?              // Quem recebeu o material
+  receivedBy      User?                @relation("ReceivedPurchaseOrders", fields: [receivedById], references: [id])
+  deliveryNotes   String?              // Observações da entrega
+  
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  
+  @@map("purchase_orders")
 }
 
 // Modelo para anexos/arquivos
@@ -268,14 +334,21 @@ model SystemConfig {
 
 // Enum para tipos de notificação
 enum NotificationType {
-  NEW_OS          // Nova OS criada
-  OS_UPDATED      // OS atualizada
-  OS_ASSIGNED     // OS atribuída a técnico
-  OS_COMPLETED    // OS finalizada
-  OS_CANCELLED    // OS cancelada
-  MATERIAL_NEEDED // Material necessário
-  URGENT          // Notificação urgente
-  INFO            // Informação geral
+  NEW_OS               // Nova OS criada
+  OS_UPDATED           // OS atualizada
+  OS_ASSIGNED          // OS atribuída a técnico
+  OS_COMPLETED         // OS finalizada
+  OS_CANCELLED         // OS cancelada
+  MATERIAL_NEEDED      // Material necessário - técnico preencheu
+  QUOTES_REQUESTED     // Orçamentos solicitados aos fornecedores
+  QUOTE_RECEIVED       // Orçamento recebido de fornecedor
+  QUOTES_READY         // Todos orçamentos recebidos, pronto para aprovação
+  PURCHASE_APPROVED    // Compra aprovada pelo gestor
+  AWAITING_SIGNATURE   // Aguardando assinatura do prefeito
+  PURCHASE_SIGNED      // Compra assinada
+  MATERIAL_DELIVERED   // Material entregue
+  URGENT               // Notificação urgente
+  INFO                 // Informação geral
 }
 
 // Modelo para notificações do sistema
