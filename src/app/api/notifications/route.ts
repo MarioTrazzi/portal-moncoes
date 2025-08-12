@@ -8,15 +8,22 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const testUser = searchParams.get('testUser') || 'funcionario'
     
-    const testUserMapping = {
-      funcionario: 'funcionario@prefeitura.gov.br',    // FUNCIONARIO
-      tecnico: 'tecnico@prefeitura.gov.br',             // TECNICO  
-      admin: 'admin@prefeitura.gov.br',                 // ADMIN
-      gestor: 'gestor@prefeitura.gov.br',               // GESTOR
-      aprovador: 'admin@prefeitura.gov.br'              // APROVADOR (usar admin como fallback)
+    // Se o testUser parece ser um email, usar diretamente
+    let userEmail: string
+    if (testUser.includes('@')) {
+      userEmail = testUser
+    } else {
+      // Caso contrário, mapear para emails conhecidos
+      const testUserMapping = {
+        funcionario: 'maria.educacao@prefeitura.gov.br',    // FUNCIONARIO
+        tecnico: 'carlos.tech@prefeitura.gov.br',           // TECNICO  
+        admin: 'admin@prefeitura.gov.br',                   // ADMIN
+        gestor: 'gestor@prefeitura.gov.br',                 // GESTOR
+        aprovador: 'ana.rh@prefeitura.gov.br'              // APROVADOR
+      }
+      
+      userEmail = testUserMapping[testUser as keyof typeof testUserMapping] || testUserMapping.funcionario
     }
-    
-    const userEmail = testUserMapping[testUser as keyof typeof testUserMapping] || testUserMapping.funcionario
     
     // Buscar o usuário atual
     const { prisma } = await import('@/lib/prisma')
@@ -26,7 +33,7 @@ export async function GET(request: NextRequest) {
 
     if (!currentUser) {
       return NextResponse.json(
-        { error: 'Usuário não encontrado' },
+        { error: 'Usuário não encontrado', email: userEmail },
         { status: 404 }
       )
     }
