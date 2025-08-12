@@ -1,5 +1,5 @@
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { TestUserProvider } from "@/contexts/test-user-context"
+import { ProtectedRoute } from "@/components/protected-route"
 
 export default function DashboardLayoutPage({
   children,
@@ -7,8 +7,8 @@ export default function DashboardLayoutPage({
   children: React.ReactNode
 }) {
   return (
-    <TestUserProvider>
+    <ProtectedRoute>
       <DashboardLayout>{children}</DashboardLayout>
-    </TestUserProvider>
+    </ProtectedRoute>
   )
 }

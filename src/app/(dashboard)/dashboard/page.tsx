@@ -8,10 +8,9 @@ import { NextActions } from '@/components/dashboard/next-actions'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Plus, ArrowRight, Users, Wrench, FileText, BarChart3, User, RefreshCw } from 'lucide-react'
+import { Plus, ArrowRight, Users, Wrench, FileText, BarChart3, RefreshCw } from 'lucide-react'
 import { UserRole } from '@prisma/client'
-import { usePermissions } from '@/hooks/use-permissions'
-import { useTestUser } from '@/contexts/test-user-context'
+import { useAuth } from '@/contexts/auth-context'
 import Link from 'next/link'
 
 interface UserData {
@@ -38,40 +37,7 @@ interface UserPermissions {
 }
 
 export default function DashboardPage() {
-  const [user, setUser] = useState<UserData | null>(null)
-  const [permissions, setPermissions] = useState<UserPermissions | null>(null)
-  const [loading, setLoading] = useState(true)
-  const { currentTestUser, setCurrentTestUser } = useTestUser()
-
-  // Função para buscar dados do usuário
-  const fetchUserData = async (testUserType?: string) => {
-    try {
-      setLoading(true)
-      const userType = testUserType || currentTestUser
-      const url = `/api/auth/me?testUser=${userType}`
-      
-      const response = await fetch(url)
-      const data = await response.json()
-      
-      if (response.ok) {
-        setUser(data.user)
-        setPermissions(data.permissions)
-        if (testUserType) {
-          setCurrentTestUser(testUserType)
-        }
-      } else {
-        console.error('Erro ao buscar dados do usuário:', data.error)
-      }
-    } catch (error) {
-      console.error('Erro na requisição:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchUserData()
-  }, [])
+  const { user, permissions, loading } = useAuth()
 
   const getRoleLabel = (role: UserRole) => {
     const labels = {
@@ -95,42 +61,6 @@ export default function DashboardPage() {
     return colors[role] || 'bg-gray-100 text-gray-800'
   }
 
-  // Componente para trocar usuário de teste
-  const TestUserSwitcher = () => (
-    <Card className="mb-6 border-dashed border-yellow-300 bg-yellow-50">
-      <CardHeader>
-        <CardTitle className="text-sm flex items-center gap-2">
-          <User className="h-4 w-4" />
-          Modo de Teste - Trocar Usuário
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="flex gap-2 flex-wrap">
-          {[
-            { key: 'funcionario', label: 'Funcionário' },
-            { key: 'tecnico', label: 'Técnico' },
-            { key: 'gestor', label: 'Gestor' },
-            { key: 'aprovador', label: 'Aprovador' },
-            { key: 'admin', label: 'Admin' }
-          ].map(({ key, label }) => (
-            <Button
-              key={key}
-              variant={currentTestUser === key ? "default" : "outline"}
-              size="sm"
-              onClick={() => fetchUserData(key)}
-              disabled={loading}
-            >
-              {loading && currentTestUser === key && (
-                <RefreshCw className="mr-2 h-3 w-3 animate-spin" />
-              )}
-              {label}
-            </Button>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  )
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -149,9 +79,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      {/* Switcher de usuário para teste */}
-      <TestUserSwitcher />
-
       {/* Header com informações do usuário */}
       <div className="flex items-center justify-between">
         <div>
