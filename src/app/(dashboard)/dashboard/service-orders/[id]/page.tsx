@@ -14,7 +14,7 @@ import { ServiceOrderStatus, AttachmentType, UserRole } from "@prisma/client"
 import { statusLabels, categoryLabels } from "@/types"
 import { useToast } from "@/hooks/use-toast"
 import { AttachmentManager } from "@/components/service-orders/attachment-manager"
-import { useTestUser } from "@/contexts/test-user-context"
+import { useAuth } from "@/contexts/auth-context"
 import Link from "next/link"
 
 interface Attachment {
@@ -88,7 +88,6 @@ interface ServiceOrderDetails {
 export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params)
   const [serviceOrder, setServiceOrder] = useState<ServiceOrderDetails | null>(null)
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -99,7 +98,7 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
   
   const router = useRouter()
   const { toast } = useToast()
-  const { currentTestUser } = useTestUser()
+  const { user: currentUser } = useAuth()
 
   // Função para verificar permissões de edição
   const canEditStatus = (): boolean => {
@@ -130,29 +129,6 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
     
     return false
   }
-
-  // Buscar usuário atual
-  const fetchCurrentUser = async () => {
-    try {
-      const params = new URLSearchParams()
-      if (currentTestUser) {
-        params.append('testUser', currentTestUser)
-      }
-      
-      const response = await fetch(`/api/auth/me?${params}`)
-      if (response.ok) {
-        const responseData = await response.json()
-        // A API retorna { user: userData, permissions: ... }
-        setCurrentUser(responseData.user)
-      }
-    } catch (error) {
-      console.error('Erro ao buscar usuário:', error)
-    }
-  }
-
-  useEffect(() => {
-    fetchCurrentUser()
-  }, [currentTestUser])
 
   useEffect(() => {
     fetchServiceOrder()
@@ -201,13 +177,7 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
         observations: observations.trim() || undefined,
       }
 
-      // Construir URL com parâmetro testUser
-      const params = new URLSearchParams()
-      if (currentTestUser) {
-        params.append('testUser', currentTestUser)
-      }
-      
-      const url = `/api/service-orders/${resolvedParams.id}?${params}`
+      const url = `/api/service-orders/${resolvedParams.id}`
 
       const response = await fetch(url, {
         method: "PUT",
