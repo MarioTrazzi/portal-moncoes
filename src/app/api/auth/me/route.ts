@@ -10,10 +10,10 @@ export async function GET(request: NextRequest) {
     
     const testUserMapping = {
       funcionario: 'funcionario@prefeitura.gov.br',    // FUNCIONARIO
-      tecnico: 'tecnico@prefeitura.gov.br',             // TECNICO  
+      tecnico: 'carlos.tech@prefeitura.gov.br',        // TECNICO  
       admin: 'admin@prefeitura.gov.br',                 // ADMIN
       gestor: 'gestor@prefeitura.gov.br',               // GESTOR
-      aprovador: 'admin@prefeitura.gov.br'              // APROVADOR (usar admin como fallback)
+      aprovador: 'ana.rh@prefeitura.gov.br'            // APROVADOR
     }
     
     const userEmail = testUserMapping[testUser as keyof typeof testUserMapping] || testUserMapping.funcionario
