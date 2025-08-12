@@ -57,11 +57,25 @@ export function RecentOrders({
       if (!showAllOrders && userId) {
         url += `&userId=${userId}`
       }
+
+      // Obter token do cookie para autenticação
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('auth-token='))
+        ?.split('=')[1]
       
-      const response = await fetch(url)
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
       if (response.ok) {
         const data = await response.json()
-        setOrders(data.data || [])
+        setOrders(data.serviceOrders || data.data || [])
+      } else {
+        console.error('Erro na API:', response.status, response.statusText)
       }
     } catch (error) {
       console.error('Erro ao buscar ordens recentes:', error)

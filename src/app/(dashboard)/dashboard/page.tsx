@@ -135,17 +135,37 @@ export default function DashboardPage() {
           </Card>
         )}
 
-        {/* Manutenção - para técnicos, gestores e admins */}
+        {/* Usuários - apenas para admins */}
+        {permissions.canManageUsers && (
+          <Card className="hover:shadow-md transition-shadow cursor-pointer" asChild>
+            <Link href="/dashboard/users">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Usuários</CardTitle>
+                <Users className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  Gerenciar usuários do sistema
+                </div>
+                <div className="flex items-center pt-2 text-sm font-medium text-primary">
+                  Acessar <ArrowRight className="ml-1 h-4 w-4" />
+                </div>
+              </CardContent>
+            </Link>
+          </Card>
+        )}
+
+        {/* Configurações - para técnicos, gestores e admins */}
         {(permissions.canEditOrders || permissions.canViewReports) && (
           <Card className="hover:shadow-md transition-shadow cursor-pointer" asChild>
-            <Link href="/dashboard/maintenance">
+            <Link href="/dashboard/settings">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Manutenção</CardTitle>
+                <CardTitle className="text-sm font-medium">Configurações</CardTitle>
                 <Wrench className="h-4 w-4 text-gray-500 dark:text-gray-400" />
               </CardHeader>
               <CardContent>
                 <div className="text-xs text-gray-500 dark:text-gray-400">
-                  Histórico e planejamento
+                  Configurações do sistema
                 </div>
                 <div className="flex items-center pt-2 text-sm font-medium text-primary">
                   Acessar <ArrowRight className="ml-1 h-4 w-4" />
@@ -158,14 +178,14 @@ export default function DashboardPage() {
         {/* Relatórios - para gestores e admins */}
         {permissions.canViewReports && (
           <Card className="hover:shadow-md transition-shadow cursor-pointer" asChild>
-            <Link href="/dashboard/reports">
+            <Link href="/dashboard/suppliers">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Relatórios</CardTitle>
+                <CardTitle className="text-sm font-medium">Fornecedores</CardTitle>
                 <BarChart3 className="h-4 w-4 text-gray-500 dark:text-gray-400" />
               </CardHeader>
               <CardContent>
                 <div className="text-xs text-gray-500 dark:text-gray-400">
-                  Relatórios e análises
+                  Gerenciar fornecedores
                 </div>
                 <div className="flex items-center pt-2 text-sm font-medium text-primary">
                   Acessar <ArrowRight className="ml-1 h-4 w-4" />

@@ -1,8 +1,19 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { verifyAuth } from "@/lib/auth"
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // Verificar autenticação
+    const authResult = await verifyAuth(request)
+    if (authResult.error) {
+      return NextResponse.json(
+        { error: authResult.error },
+        { status: authResult.status }
+      )
+    }
+    
+    const currentUser = authResult.user!
     const now = new Date()
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const startOfWeek = new Date(now)

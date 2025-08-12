@@ -54,8 +54,20 @@ export function RealtimeStats({ refreshInterval = 30, className }: RealtimeStats
     try {
       setIsLoading(true)
       setError(null)
+
+      // Obter token do cookie para autenticação
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('auth-token='))
+        ?.split('=')[1]
       
-      const response = await fetch('/api/dashboard/stats')
+      const response = await fetch('/api/dashboard/stats', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
       if (!response.ok) {
         throw new Error('Erro ao carregar estatísticas')
       }
