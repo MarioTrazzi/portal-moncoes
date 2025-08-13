@@ -15,6 +15,7 @@ import { statusLabels, categoryLabels } from "@/types"
 import { useToast } from "@/hooks/use-toast"
 import { AttachmentManager } from "@/components/service-orders/attachment-manager"
 import { useAuth } from "@/contexts/auth-context"
+import { useHydration } from "@/hooks/use-hydration"
 import Link from "next/link"
 
 interface Attachment {
@@ -99,6 +100,7 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
   const router = useRouter()
   const { toast } = useToast()
   const { user: currentUser } = useAuth()
+  const hydrated = useHydration()
 
   // Função para verificar permissões de edição
   const canEditStatus = (): boolean => {
@@ -131,8 +133,10 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
   }
 
   useEffect(() => {
-    fetchServiceOrder()
-  }, [resolvedParams.id])
+    if (hydrated) {
+      fetchServiceOrder()
+    }
+  }, [resolvedParams.id, hydrated])
 
   useEffect(() => {
     if (serviceOrder) {
@@ -222,7 +226,7 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
     })
   }
 
-  if (loading) {
+  if (!hydrated || loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="flex items-center gap-2">

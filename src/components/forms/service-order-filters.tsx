@@ -14,6 +14,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Search, Filter, X, Calendar } from 'lucide-react'
 import { categoryLabels } from '@/types'
+import { useHydration } from '@/hooks/use-hydration'
 
 interface FilterOptions {
   search: string
@@ -62,6 +63,7 @@ export function ServiceOrderFilters({ onFilterChange, isLoading }: ServiceOrderF
   })
 
   const [isExpanded, setIsExpanded] = useState(false)
+  const hydrated = useHydration()
 
   const handleFilterChange = (key: keyof FilterOptions, value: string) => {
     // Converter "all" para string vazia para manter compatibilidade
@@ -87,6 +89,25 @@ export function ServiceOrderFilters({ onFilterChange, isLoading }: ServiceOrderF
   }
 
   const hasActiveFilters = Object.values(filters).some(value => value !== '')
+
+  // Não renderizar até a hidratação estar completa
+  if (!hydrated) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Search className="h-5 w-5" />
+            Filtros de Busca
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="animate-pulse">
+            <div className="h-10 bg-gray-200 rounded mb-4"></div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
     <Card>
