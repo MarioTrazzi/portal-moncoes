@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -63,6 +64,7 @@ export default function ServiceOrdersPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const hydrated = useHydration()
+  const searchParams = useSearchParams()
   const [filters, setFilters] = useState<FilterOptions>({
     search: '',
     status: '',
@@ -73,6 +75,23 @@ export default function ServiceOrdersPage() {
     dateFrom: '',
     dateTo: '',
   })
+
+  // Aplicar filtros dos parâmetros da URL quando a página carregar
+  useEffect(() => {
+    if (hydrated && searchParams) {
+      const urlFilters: FilterOptions = {
+        search: searchParams.get('search') || '',
+        status: searchParams.get('status') || '',
+        priority: searchParams.get('priority') || '',
+        category: searchParams.get('category') || '',
+        assignedTo: searchParams.get('assignedTo') || '',
+        createdBy: searchParams.get('createdBy') || '',
+        dateFrom: searchParams.get('dateFrom') || '',
+        dateTo: searchParams.get('dateTo') || '',
+      }
+      setFilters(urlFilters)
+    }
+  }, [hydrated, searchParams])
 
   const fetchServiceOrders = async () => {
     try {
@@ -109,14 +128,20 @@ export default function ServiceOrdersPage() {
         if (!matchesSearch) return false
       }
 
-      // Filtro de status
-      if (filterOptions.status && order.status !== filterOptions.status) {
-        return false
+      // Filtro de status - suporte para múltiplos status separados por vírgula
+      if (filterOptions.status) {
+        const statusList = filterOptions.status.split(',').map(s => s.trim())
+        if (!statusList.includes(order.status)) {
+          return false
+        }
       }
 
-      // Filtro de prioridade
-      if (filterOptions.priority && order.priority !== filterOptions.priority) {
-        return false
+      // Filtro de prioridade - suporte para múltiplas prioridades separadas por vírgula
+      if (filterOptions.priority) {
+        const priorityList = filterOptions.priority.split(',').map(p => p.trim())
+        if (!priorityList.includes(order.priority)) {
+          return false
+        }
       }
 
       // Filtro de categoria

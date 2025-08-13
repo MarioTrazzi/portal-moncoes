@@ -33,19 +33,26 @@ interface ServiceOrderFiltersProps {
 }
 
 const statusOptions = [
-  { value: 'PENDENTE', label: 'Pendente' },
-  { value: 'EM_ANDAMENTO', label: 'Em Andamento' },
-  { value: 'AGUARDANDO_APROVACAO', label: 'Aguardando Aprovação' },
-  { value: 'AGUARDANDO_ORCAMENTO', label: 'Aguardando Orçamento' },
-  { value: 'APROVADO', label: 'Aprovado' },
+  { value: 'ABERTA', label: 'Aberta' },
+  { value: 'EM_ANALISE', label: 'Em Análise' },
+  { value: 'AGUARDANDO_DESLOCAMENTO', label: 'Aguardando Deslocamento' },
   { value: 'EM_EXECUCAO', label: 'Em Execução' },
-  { value: 'CONCLUIDO', label: 'Concluído' },
-  { value: 'CANCELADO', label: 'Cancelado' },
+  { value: 'AGUARDANDO_MATERIAL', label: 'Aguardando Material' },
+  { value: 'SOLICITAR_ORCAMENTO', label: 'Solicitar Orçamento' },
+  { value: 'AGUARDANDO_ORCAMENTO', label: 'Aguardando Orçamento' },
+  { value: 'ORCAMENTOS_RECEBIDOS', label: 'Orçamentos Recebidos' },
+  { value: 'AGUARDANDO_APROVACAO', label: 'Aguardando Aprovação' },
+  { value: 'MATERIAL_APROVADO', label: 'Material Aprovado' },
+  { value: 'AGUARDANDO_ASSINATURA', label: 'Aguardando Assinatura' },
+  { value: 'COMPRA_AUTORIZADA', label: 'Compra Autorizada' },
+  { value: 'MATERIAL_RECEBIDO', label: 'Material Recebido' },
+  { value: 'FINALIZADA', label: 'Finalizada' },
+  { value: 'CANCELADA', label: 'Cancelada' },
 ]
 
 const priorityOptions = [
   { value: 'BAIXA', label: 'Baixa' },
-  { value: 'MEDIA', label: 'Média' },
+  { value: 'NORMAL', label: 'Normal' },
   { value: 'ALTA', label: 'Alta' },
   { value: 'URGENTE', label: 'Urgente' },
 ]
