@@ -41,11 +41,13 @@ export default function LoginPage() {
 
   // Usuários de exemplo para facilitar o teste
   const exampleUsers = [
-    { email: 'funcionario@prefeitura.gov.br', role: 'Funcionário', dept: 'RH', password: 'funcionario123' },
-    { email: 'tecnico@prefeitura.gov.br', role: 'Técnico', dept: 'TI', password: 'tecnico123' },
-    { email: 'aprovador@prefeitura.gov.br', role: 'Aprovador', dept: 'TI', password: 'aprovador123' },
-    { email: 'gestor@prefeitura.gov.br', role: 'Gestor', dept: 'Finanças', password: 'gestor123' },
-    { email: 'admin@prefeitura.gov.br', role: 'Admin', dept: 'TI', password: 'admin123' }
+    { email: 'funcionario@prefeitura.gov.br', role: 'Funcionário', dept: 'Educação', password: '123456', name: 'Pedro Funcionário' },
+    { email: 'maria.func@prefeitura.gov.br', role: 'Funcionário', dept: 'Saúde', password: '123456', name: 'Maria Funcionária' },
+    { email: 'tecnico@prefeitura.gov.br', role: 'Técnico', dept: 'TI', password: '123456', name: 'Carlos Técnico' },
+    { email: 'tecnico2@prefeitura.gov.br', role: 'Técnico', dept: 'TI', password: '123456', name: 'Ana Técnica' },
+    { email: 'aprovador@prefeitura.gov.br', role: 'Aprovador', dept: 'TI', password: '123456', name: 'Roberto Aprovador' },
+    { email: 'gestor@prefeitura.gov.br', role: 'Gestor', dept: 'Gabinete', password: '123456', name: 'Sandra Gestora' },
+    { email: 'admin@prefeitura.gov.br', role: 'Admin', dept: 'TI', password: '123456', name: 'João Admin' }
   ]
 
   return (
@@ -84,7 +86,8 @@ export default function LoginPage() {
                   }}
                 >
                   <div>
-                    <div className="font-medium">{user.email}</div>
+                    <div className="font-medium">{user.name}</div>
+                    <div className="text-gray-600 text-xs">{user.email}</div>
                     <div className="text-gray-500">{user.role} • {user.dept}</div>
                     <div className="text-gray-400 text-xs">Senha: {user.password}</div>
                   </div>
