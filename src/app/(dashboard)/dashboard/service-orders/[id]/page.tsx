@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { ArrowLeft, Clock, User, MapPin, FileText, Save, Loader2 } from "lucide-react"
@@ -51,6 +50,8 @@ interface ServiceOrderDetails {
   diagnosis?: string
   solution?: string
   observations?: string
+  materialDescription?: string
+  materialJustification?: string
   estimatedHours?: number
   actualHours?: number
   createdAt: string
@@ -88,11 +89,13 @@ interface ServiceOrderDetails {
 
 export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params)
+  const hydrated = useHydration()
   const [serviceOrder, setServiceOrder] = useState<ServiceOrderDetails | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [newStatus, setNewStatus] = useState<ServiceOrderStatus | "">("")
+  const [materialDescription, setMaterialDescription] = useState("")
+  const [materialJustification, setMaterialJustification] = useState("")
   const [diagnosis, setDiagnosis] = useState("")
   const [solution, setSolution] = useState("")
   const [observations, setObservations] = useState("")
@@ -100,36 +103,113 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
   const router = useRouter()
   const { toast } = useToast()
   const { user: currentUser } = useAuth()
-  const hydrated = useHydration()
 
-  // Função para verificar permissões de edição
-  const canEditStatus = (): boolean => {
-    if (!currentUser || !serviceOrder) return false
-    
-    // Técnicos podem alterar qualquer status
-    if (currentUser.role === UserRole.TECNICO) return true
-    
-    // Criador da OS pode editar apenas se estiver ABERTA
-    if (currentUser.id === serviceOrder.createdBy.id) {
-      return serviceOrder.status === ServiceOrderStatus.ABERTA
-    }
-    
-    return false
-  }
+  // Função para verificar permissões baseadas no fluxo do processo
+  const getAvailableActions = (status: ServiceOrderStatus, userRole: UserRole) => {
+    const actions = []
 
-  // Função para verificar se pode finalizar OS
-  const canComplete = (): boolean => {
-    if (!currentUser || !serviceOrder) return false
-    
-    // Técnicos podem finalizar qualquer OS
-    if (currentUser.role === UserRole.TECNICO) return true
-    
-    // Criador pode finalizar apenas se estiver ABERTA
-    if (currentUser.id === serviceOrder.createdBy.id) {
-      return serviceOrder.status === ServiceOrderStatus.ABERTA
+    switch (status) {
+      case ServiceOrderStatus.ABERTA:
+        // Apenas técnico pode colocar em análise
+        if (userRole === UserRole.TECNICO) {
+          actions.push({
+            action: 'start_analysis',
+            label: 'Iniciar Análise',
+            nextStatus: ServiceOrderStatus.EM_ANALISE,
+            description: 'Inicia o processo de análise técnica da OS'
+          })
+        }
+        break
+
+      case ServiceOrderStatus.EM_ANALISE:
+        if (userRole === UserRole.TECNICO) {
+          // Técnico pode identificar necessidade de material
+          actions.push({
+            action: 'require_material',
+            label: 'Necessita Material',
+            nextStatus: ServiceOrderStatus.AGUARDANDO_MATERIAL,
+            description: 'Identifica que a OS requer materiais para execução',
+            requiresMaterialDescription: true
+          })
+          
+          // Ou pode prosseguir sem material
+          actions.push({
+            action: 'start_execution',
+            label: 'Iniciar Execução',
+            nextStatus: ServiceOrderStatus.EM_EXECUCAO,
+            description: 'Inicia a execução da OS sem necessidade de materiais'
+          })
+        }
+        break
+
+      case ServiceOrderStatus.AGUARDANDO_MATERIAL:
+        if (userRole === UserRole.GESTOR || userRole === UserRole.ADMIN) {
+          // Gestor pode solicitar orçamento
+          actions.push({
+            action: 'request_quote',
+            label: 'Solicitar Orçamento',
+            nextStatus: ServiceOrderStatus.AGUARDANDO_ORCAMENTO,
+            description: 'Envia solicitação de orçamento para fornecedores'
+          })
+        }
+        break
+
+      case ServiceOrderStatus.AGUARDANDO_ORCAMENTO:
+        if (userRole === UserRole.APROVADOR || userRole === UserRole.ADMIN) {
+          // Aprovador pode enviar para aprovação
+          actions.push({
+            action: 'send_approval',
+            label: 'Enviar para Aprovação',
+            nextStatus: ServiceOrderStatus.AGUARDANDO_APROVACAO,
+            description: 'Envia orçamento para aprovação superior'
+          })
+        }
+        break
+
+      case ServiceOrderStatus.AGUARDANDO_APROVACAO:
+        if (userRole === UserRole.GESTOR || userRole === UserRole.ADMIN) {
+          // Gestor pode aprovar material
+          actions.push({
+            action: 'approve_material',
+            label: 'Aprovar Material',
+            nextStatus: ServiceOrderStatus.MATERIAL_APROVADO,
+            description: 'Aprova a compra do material necessário',
+            requiresSignature: true
+          })
+        }
+        break
+
+      case ServiceOrderStatus.MATERIAL_APROVADO:
+        if (userRole === UserRole.TECNICO) {
+          // Técnico pode iniciar execução com material aprovado
+          actions.push({
+            action: 'start_execution_approved',
+            label: 'Iniciar Execução',
+            nextStatus: ServiceOrderStatus.EM_EXECUCAO,
+            description: 'Inicia execução com material aprovado'
+          })
+        }
+        break
+
+      case ServiceOrderStatus.EM_EXECUCAO:
+        if (userRole === UserRole.TECNICO) {
+          // Técnico pode finalizar
+          actions.push({
+            action: 'complete',
+            label: 'Finalizar OS',
+            nextStatus: ServiceOrderStatus.FINALIZADA,
+            description: 'Finaliza a execução da OS'
+          })
+        }
+        break
+
+      case ServiceOrderStatus.FINALIZADA:
+      case ServiceOrderStatus.CANCELADA:
+        // Nenhuma ação disponível para status finais
+        break
     }
-    
-    return false
+
+    return actions
   }
 
   useEffect(() => {
@@ -140,10 +220,11 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
 
   useEffect(() => {
     if (serviceOrder) {
-      setNewStatus(serviceOrder.status)
       setDiagnosis(serviceOrder.diagnosis || "")
       setSolution(serviceOrder.solution || "")
       setObservations(serviceOrder.observations || "")
+      setMaterialDescription(serviceOrder.materialDescription || "")
+      setMaterialJustification(serviceOrder.materialJustification || "")
     }
   }, [serviceOrder])
 
@@ -153,32 +234,36 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
       const response = await fetch(`/api/service-orders/${resolvedParams.id}`)
       
       if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error("OS não encontrada")
-        }
-        throw new Error("Erro ao carregar OS")
+        throw new Error("Ordem de serviço não encontrada")
       }
-      
+
       const data = await response.json()
-      setServiceOrder(data)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro desconhecido")
+      
+      if (data.success) {
+        setServiceOrder(data.data)
+      } else {
+        setError(data.error || "Erro ao carregar ordem de serviço")
+      }
+    } catch (error) {
+      console.error("Erro ao buscar OS:", error)
+      setError(error instanceof Error ? error.message : "Erro ao carregar OS")
     } finally {
       setLoading(false)
     }
   }
 
   const handleUpdate = async () => {
-    if (!serviceOrder) return
+    if (!serviceOrder || !currentUser) return
 
     try {
       setSaving(true)
       
       const updateData = {
-        status: newStatus,
         diagnosis: diagnosis.trim() || undefined,
         solution: solution.trim() || undefined, 
         observations: observations.trim() || undefined,
+        materialDescription: materialDescription.trim() || undefined,
+        materialJustification: materialJustification.trim() || undefined,
       }
 
       const url = `/api/service-orders/${resolvedParams.id}`
@@ -197,19 +282,79 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
       }
 
       toast({
-        title: "Sucesso!",
-        description: "OS atualizada com sucesso!",
-        variant: "success",
+        title: "Sucesso",
+        description: "Informações atualizadas com sucesso"
       })
 
-      // Recarregar dados
+      // Refresh data
       await fetchServiceOrder()
+      
     } catch (error) {
-      console.error("Erro:", error)
+      console.error("Erro ao atualizar:", error)
       toast({
-        title: "Erro!",
+        title: "Erro",
         description: error instanceof Error ? error.message : "Erro ao atualizar OS",
-        variant: "destructive",
+        variant: "destructive"
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleWorkflowAction = async (action: any) => {
+    if (!serviceOrder || !currentUser) return
+
+    try {
+      setSaving(true)
+      
+      // Validate required fields based on action
+      if (action.requiresMaterialDescription && !materialDescription.trim()) {
+        toast({
+          title: "Erro",
+          description: "Descrição do material é obrigatória para esta ação",
+          variant: "destructive"
+        })
+        return
+      }
+
+      const updateData = {
+        status: action.nextStatus,
+        diagnosis: diagnosis.trim() || undefined,
+        solution: solution.trim() || undefined, 
+        observations: observations.trim() || undefined,
+        materialDescription: materialDescription.trim() || undefined,
+        materialJustification: materialJustification.trim() || undefined,
+      }
+
+      const url = `/api/service-orders/${resolvedParams.id}`
+
+      const response = await fetch(url, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updateData),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || "Erro ao executar ação")
+      }
+
+      toast({
+        title: "Sucesso",
+        description: `${action.label} realizada com sucesso`
+      })
+
+      // Refresh data
+      await fetchServiceOrder()
+      
+    } catch (error) {
+      console.error("Erro ao executar ação:", error)
+      toast({
+        title: "Erro",
+        description: error instanceof Error ? error.message : "Erro ao executar ação",
+        variant: "destructive"
       })
     } finally {
       setSaving(false)
@@ -217,7 +362,7 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("pt-BR", {
+    return new Date(dateString).toLocaleString("pt-BR", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -264,19 +409,10 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold tracking-tight">{serviceOrder.number}</h1>
-            <StatusBadge status={serviceOrder.status} />
-            <PriorityBadge priority={serviceOrder.priority as any} />
-          </div>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">OS #{serviceOrder.number}</h1>
           <p className="text-muted-foreground">{serviceOrder.title}</p>
         </div>
-        <Button onClick={handleUpdate} disabled={saving}>
-          {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          <Save className="mr-2 h-4 w-4" />
-          Salvar Alterações
-        </Button>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -285,57 +421,35 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              Informações da OS
+              Detalhes da OS
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
               <Label className="text-sm font-medium">Descrição</Label>
-              <p className="text-sm text-muted-foreground mt-1">
-                {serviceOrder.description}
-              </p>
+              <p className="text-sm text-muted-foreground mt-1">{serviceOrder.description}</p>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label className="text-sm font-medium">Categoria</Label>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {categoryLabels[serviceOrder.category as keyof typeof categoryLabels]}
+                  {categoryLabels[serviceOrder.category as keyof typeof categoryLabels] || serviceOrder.category}
                 </p>
               </div>
               <div>
                 <Label className="text-sm font-medium">Prioridade</Label>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {serviceOrder.priority}
-                </p>
+                <div className="mt-1">
+                  <PriorityBadge priority={serviceOrder.priority as any} />
+                </div>
               </div>
             </div>
 
             <div>
               <Label className="text-sm font-medium">Status</Label>
-              {canEditStatus() ? (
-                <Select value={newStatus} onValueChange={(value) => setNewStatus(value as ServiceOrderStatus)}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Selecione o status" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-popover text-popover-foreground border shadow-lg">
-                    {Object.entries(statusLabels).map(([value, label]) => (
-                      <SelectItem key={value} value={value} className="focus:bg-accent focus:text-accent-foreground hover:bg-accent/80">
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <div className="mt-1">
-                  <StatusBadge status={serviceOrder.status} />
-                  {!canEditStatus() && currentUser?.id === serviceOrder.createdBy.id && serviceOrder.status !== ServiceOrderStatus.ABERTA && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Você só pode alterar o status enquanto a OS estiver aberta
-                    </p>
-                  )}
-                </div>
-              )}
+              <div className="mt-1">
+                <StatusBadge status={serviceOrder.status} />
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -345,44 +459,44 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <MapPin className="h-5 w-5" />
-              Localização e Responsáveis
+              Localização & Responsáveis
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
               <Label className="text-sm font-medium">Local</Label>
               <p className="text-sm text-muted-foreground mt-1">
-                {serviceOrder.createdBy.department ? (
-                  <>
-                    {serviceOrder.createdBy.department.name}
-                    <br />
-                    {serviceOrder.createdBy.department.location}
-                    {serviceOrder.createdBy.department.building && ` - ${serviceOrder.createdBy.department.building}`}
-                  </>
-                ) : (
-                  "Localização não informada"
-                )}
+                {serviceOrder.location}
+                {serviceOrder.building && ` - ${serviceOrder.building}`}
+                {serviceOrder.room && ` - Sala ${serviceOrder.room}`}
               </p>
             </div>
-            
+
             <div>
-              <Label className="text-sm font-medium">Solicitado por</Label>
+              <Label className="text-sm font-medium">Solicitante</Label>
               <div className="mt-1">
-                <p className="text-sm font-medium">{serviceOrder.createdBy.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {serviceOrder.createdBy.email}
-                  {serviceOrder.createdBy.department && ` • ${serviceOrder.createdBy.department.name}`}
-                  {serviceOrder.createdBy.position && ` • ${serviceOrder.createdBy.position}`}
-                </p>
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  <span className="text-sm">{serviceOrder.createdBy.name}</span>
+                </div>
+                <p className="text-xs text-muted-foreground ml-6">{serviceOrder.createdBy.email}</p>
+                {serviceOrder.createdBy.department && (
+                  <p className="text-xs text-muted-foreground ml-6">
+                    {serviceOrder.createdBy.department.name}
+                  </p>
+                )}
               </div>
             </div>
 
             {serviceOrder.assignedTo && (
               <div>
-                <Label className="text-sm font-medium">Atribuído para</Label>
+                <Label className="text-sm font-medium">Técnico Responsável</Label>
                 <div className="mt-1">
-                  <p className="text-sm font-medium">{serviceOrder.assignedTo.name}</p>
-                  <p className="text-xs text-muted-foreground">{serviceOrder.assignedTo.email}</p>
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    <span className="text-sm">{serviceOrder.assignedTo.name}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground ml-6">{serviceOrder.assignedTo.email}</p>
                 </div>
               </div>
             )}
@@ -390,103 +504,118 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
         </Card>
 
         {/* Diagnóstico e Solução */}
-        <Card>
+        <Card className="md:col-span-2">
           <CardHeader>
-            <CardTitle>Diagnóstico</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <Label htmlFor="diagnosis">Diagnóstico do Técnico</Label>
-              <Textarea
-                id="diagnosis"
-                placeholder="Descreva o diagnóstico do problema..."
-                value={diagnosis}
-                onChange={(e) => setDiagnosis(e.target.value)}
-                disabled={currentUser?.role !== UserRole.TECNICO}
-                rows={3}
-              />
-              {currentUser?.role !== UserRole.TECNICO && (
-                <p className="text-xs text-muted-foreground">
-                  Apenas técnicos podem adicionar diagnóstico
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Solução</CardTitle>
+            <CardTitle>Diagnóstico e Execução</CardTitle>
+            <CardDescription>
+              Informações técnicas sobre a execução da OS
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="space-y-2">
+              <div>
+                <Label htmlFor="diagnosis">Diagnóstico</Label>
+                <Textarea
+                  id="diagnosis"
+                  placeholder="Diagnóstico do problema..."
+                  value={diagnosis}
+                  onChange={(e) => setDiagnosis(e.target.value)}
+                  rows={3}
+                />
+              </div>
+
+              <div>
                 <Label htmlFor="solution">Solução Aplicada</Label>
                 <Textarea
                   id="solution"
                   placeholder="Descreva a solução aplicada..."
                   value={solution}
                   onChange={(e) => setSolution(e.target.value)}
-                  disabled={currentUser?.role !== UserRole.TECNICO}
                   rows={3}
                 />
-                {currentUser?.role !== UserRole.TECNICO && (
-                  <p className="text-xs text-muted-foreground">
-                    Apenas técnicos podem adicionar solução
-                  </p>
-                )}
               </div>
-              
-              <div className="space-y-2">
+
+              <div>
                 <Label htmlFor="observations">Observações</Label>
                 <Textarea
                   id="observations"
                   placeholder="Observações adicionais..."
                   value={observations}
                   onChange={(e) => setObservations(e.target.value)}
-                  disabled={!canEditStatus() && !canComplete()}
                   rows={2}
                 />
-                {!canEditStatus() && !canComplete() && (
-                  <p className="text-xs text-muted-foreground">
-                    Você não tem permissão para editar observações
-                  </p>
-                )}
               </div>
-              
-              {/* Botão de salvar com permissões */}
-              {(canEditStatus() || canComplete()) && (
-                <div className="flex gap-2 pt-4">
-                  <Button 
-                    onClick={handleUpdate} 
-                    disabled={saving}
-                    className="flex-1"
-                  >
-                    {saving ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Salvando...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="mr-2 h-4 w-4" />
-                        Salvar Alterações
-                      </>
-                    )}
-                  </Button>
+
+              {/* Material Description Fields - shown for specific status */}
+              {(serviceOrder.status === ServiceOrderStatus.AGUARDANDO_MATERIAL || 
+                serviceOrder.status === ServiceOrderStatus.AGUARDANDO_ORCAMENTO) && (
+                <>
+                  <div>
+                    <Label htmlFor="materialDescription">Descrição do Material</Label>
+                    <Textarea
+                      id="materialDescription"
+                      placeholder="Descreva o material necessário..."
+                      value={materialDescription}
+                      onChange={(e) => setMaterialDescription(e.target.value)}
+                      rows={3}
+                    />
+                  </div>
                   
-                  {canComplete() && serviceOrder.status !== ServiceOrderStatus.FINALIZADA && (
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setNewStatus(ServiceOrderStatus.FINALIZADA)
-                        // Trigger update after status change
-                        setTimeout(handleUpdate, 100)
-                      }}
-                      disabled={saving}
-                    >
-                      Finalizar OS
-                    </Button>
+                  <div>
+                    <Label htmlFor="materialJustification">Justificativa</Label>
+                    <Textarea
+                      id="materialJustification"
+                      placeholder="Justifique a necessidade do material..."
+                      value={materialJustification}
+                      onChange={(e) => setMaterialJustification(e.target.value)}
+                      rows={2}
+                    />
+                  </div>
+                </>
+              )}
+              
+              {/* Botão de salvar alterações nos campos */}
+              <div className="flex gap-2 pt-4">
+                <Button 
+                  onClick={handleUpdate} 
+                  disabled={saving}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="mr-2 h-4 w-4" />
+                      Salvar Informações
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {/* Workflow Actions */}
+              {currentUser && (
+                <div className="border-t pt-4">
+                  <h4 className="text-sm font-medium mb-3">Ações Disponíveis</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {getAvailableActions(serviceOrder.status, currentUser.role).map((action, index) => (
+                      <Button
+                        key={index}
+                        onClick={() => handleWorkflowAction(action)}
+                        disabled={saving}
+                        className="justify-start"
+                      >
+                        {action.label}
+                      </Button>
+                    ))}
+                  </div>
+                  {getAvailableActions(serviceOrder.status, currentUser.role).length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      Nenhuma ação disponível para seu perfil neste momento.
+                    </p>
                   )}
                 </div>
               )}
