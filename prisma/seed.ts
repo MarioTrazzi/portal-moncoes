@@ -1,310 +1,460 @@
-import { PrismaClient, UserRole, Priority, ProblemCategory, ServiceOrderStatus } from '@prisma/client'
+import { PrismaClient, UserRole, ServiceOrderStatus, Priority, ProblemCategory, QuoteStatus, PurchaseOrderStatus, AttachmentType } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
 async function main() {
-  // Limpar dados existentes
+  console.log('🌱 Iniciando seed do banco de dados...')
+
+  // 1. Limpar banco existente
+  console.log('🧹 Limpando dados existentes...')
   await prisma.auditLog.deleteMany()
+  await prisma.notification.deleteMany()
   await prisma.attachment.deleteMany()
   await prisma.quote.deleteMany()
+  await prisma.purchaseOrder.deleteMany()
   await prisma.serviceOrder.deleteMany()
   await prisma.user.deleteMany()
-  await prisma.department.deleteMany()
   await prisma.supplier.deleteMany()
+  await prisma.department.deleteMany()
 
+  // 2. Criar departamentos
   console.log('🏢 Criando departamentos...')
-  
-  // Criar departamentos
   const departments = await Promise.all([
     prisma.department.create({
       data: {
-        name: 'Secretaria de Educação',
-        description: 'Responsável pela gestão educacional do município',
-        location: 'Prédio Principal',
-        building: 'Bloco A',
-        floor: '2º Andar',
-        responsible: 'Maria Silva',
-        phone: '(11) 3333-1001',
-        email: 'educacao@prefeitura.gov.br'
-      }
-    }),
-    prisma.department.create({
-      data: {
-        name: 'Secretaria de Saúde',
-        description: 'Gestão da saúde pública municipal',
-        location: 'Centro de Saúde',
-        building: 'Prédio da Saúde',
-        floor: '1º Andar',
-        responsible: 'João Santos',
-        phone: '(11) 3333-1002',
-        email: 'saude@prefeitura.gov.br'
-      }
-    }),
-    prisma.department.create({
-      data: {
-        name: 'Departamento de TI',
-        description: 'Suporte técnico e infraestrutura de TI',
-        location: 'Prédio Principal',
-        building: 'Bloco B',
-        floor: 'Subsolo',
-        responsible: 'Carlos Tech',
-        phone: '(11) 3333-1003',
-        email: 'ti@prefeitura.gov.br'
+        name: 'Tecnologia da Informação',
+        location: 'Prédio Administrativo, 2º andar',
+        building: 'Edifício Central',
+        floor: '2º andar',
+        responsible: 'João Carlos Silva'
       }
     }),
     prisma.department.create({
       data: {
         name: 'Recursos Humanos',
-        description: 'Gestão de pessoal e recursos humanos',
-        location: 'Prédio Principal',
-        building: 'Bloco A',
-        floor: '1º Andar',
-        responsible: 'Ana Costa',
-        phone: '(11) 3333-1004',
-        email: 'rh@prefeitura.gov.br'
+        location: 'Prédio Administrativo, 1º andar',
+        building: 'Edifício Central', 
+        floor: '1º andar',
+        responsible: 'Maria Santos Oliveira'
       }
     }),
     prisma.department.create({
       data: {
-        name: 'Secretaria de Obras',
-        description: 'Planejamento e execução de obras públicas',
-        location: 'Galpão de Obras',
-        building: 'Anexo',
+        name: 'Finanças',
+        location: 'Prédio Administrativo, 3º andar',
+        building: 'Edifício Central',
+        floor: '3º andar', 
+        responsible: 'Carlos Eduardo Lima'
+      }
+    }),
+    prisma.department.create({
+      data: {
+        name: 'Saúde',
+        location: 'Posto de Saúde Central',
+        building: 'Unidade de Saúde',
         floor: 'Térreo',
-        responsible: 'Roberto Construtor',
-        phone: '(11) 3333-1005',
-        email: 'obras@prefeitura.gov.br'
+        responsible: 'Dra. Ana Paula Costa'
       }
     }),
     prisma.department.create({
       data: {
-        name: 'Gabinete do Prefeito',
-        description: 'Gabinete executivo municipal',
-        location: 'Prédio Principal',
-        building: 'Bloco A',
-        floor: '3º Andar',
-        responsible: 'Secretária Executiva',
-        phone: '(11) 3333-1000',
-        email: 'gabinete@prefeitura.gov.br'
+        name: 'Educação',
+        location: 'Secretaria de Educação',
+        building: 'Prédio da Educação',
+        floor: '1º andar',
+        responsible: 'Prof. Roberto Mendes'
       }
     })
   ])
 
+  // 3. Criar fornecedores
+  console.log('🏪 Criando fornecedores...')
+  const suppliers = await Promise.all([
+    prisma.supplier.create({
+      data: {
+        name: 'TecnoInfo Soluções',
+        cnpj: '12.345.678/0001-90',
+        email: 'vendas@tecnoinfo.com.br',
+        phone: '(11) 98765-4321',
+        address: 'Rua da Tecnologia, 123, São Paulo - SP',
+        contact: 'Ricardo Pereira',
+        categories: JSON.stringify(['HARDWARE', 'SOFTWARE', 'REDE'])
+      }
+    }),
+    prisma.supplier.create({
+      data: {
+        name: 'ElétricaMax Ltda',
+        cnpj: '98.765.432/0001-12',
+        email: 'orcamentos@eletricamax.com.br',
+        phone: '(11) 87654-3210',
+        address: 'Av. das Instalações, 456, São Paulo - SP',
+        contact: 'Paulo Santos',
+        categories: JSON.stringify(['HARDWARE', 'OUTROS'])
+      }
+    }),
+    prisma.supplier.create({
+      data: {
+        name: 'Office Premium',
+        cnpj: '11.222.333/0001-44',
+        email: 'comercial@officepremium.com.br',
+        phone: '(11) 76543-2109',
+        address: 'Rua dos Escritórios, 789, São Paulo - SP',
+        contact: 'Fernanda Costa',
+        categories: JSON.stringify(['IMPRESSORA', 'HARDWARE', 'OUTROS'])
+      }
+    })
+  ])
+
+  // 4. Criar usuários com senhas hasheadas
   console.log('👥 Criando usuários...')
-  
-  // Criar usuários
-  const hashedPassword = await bcrypt.hash('123456', 10)
-  
   const users = await Promise.all([
     // Admin
     prisma.user.create({
       data: {
         email: 'admin@prefeitura.gov.br',
         name: 'Administrador do Sistema',
-        password: hashedPassword,
+        password: await bcrypt.hash('admin123', 10),
         role: UserRole.ADMIN,
         registration: 'ADM001',
+        phone: '(11) 99999-0001',
         position: 'Administrador de TI',
-        departmentId: departments[2].id, // TI
-        room: 'Sala de Servidores'
+        departmentId: departments[0].id,
+        room: 'Sala 201'
       }
     }),
-    
-    // Funcionários
-    prisma.user.create({
-      data: {
-        email: 'maria.educacao@prefeitura.gov.br',
-        name: 'Maria Silva',
-        password: hashedPassword,
-        role: UserRole.FUNCIONARIO,
-        registration: 'EDU001',
-        position: 'Coordenadora Pedagógica',
-        departmentId: departments[0].id, // Educação
-        room: 'Sala 201',
-        phone: '(11) 99999-0001'
-      }
-    }),
-    
-    prisma.user.create({
-      data: {
-        email: 'joao.saude@prefeitura.gov.br',
-        name: 'João Santos',
-        password: hashedPassword,
-        role: UserRole.FUNCIONARIO,
-        registration: 'SAU001',
-        position: 'Enfermeiro Chefe',
-        departmentId: departments[1].id, // Saúde
-        room: 'Sala de Enfermagem',
-        phone: '(11) 99999-0002'
-      }
-    }),
-    
-    prisma.user.create({
-      data: {
-        email: 'ana.rh@prefeitura.gov.br',
-        name: 'Ana Costa',
-        password: hashedPassword,
-        role: UserRole.APROVADOR,
-        registration: 'RH001',
-        position: 'Gerente de RH',
-        departmentId: departments[3].id, // RH
-        room: 'Sala 101',
-        phone: '(11) 99999-0003'
-      }
-    }),
-    
-    // Técnicos
-    prisma.user.create({
-      data: {
-        email: 'carlos.tech@prefeitura.gov.br',
-        name: 'Carlos Tech',
-        password: hashedPassword,
-        role: UserRole.TECNICO,
-        registration: 'TI001',
-        position: 'Técnico de TI Sênior',
-        departmentId: departments[2].id, // TI
-        room: 'Lab de Manutenção',
-        phone: '(11) 99999-0004'
-      }
-    }),
-    
-    prisma.user.create({
-      data: {
-        email: 'pedro.tech@prefeitura.gov.br',
-        name: 'Pedro Suporte',
-        password: hashedPassword,
-        role: UserRole.TECNICO,
-        registration: 'TI002',
-        position: 'Técnico de TI Júnior',
-        departmentId: departments[2].id, // TI
-        room: 'Lab de Manutenção',
-        phone: '(11) 99999-0005'
-      }
-    }),
-    
     // Gestor
     prisma.user.create({
       data: {
         email: 'gestor@prefeitura.gov.br',
-        name: 'Diretor Geral',
-        password: hashedPassword,
+        name: 'Carlos Eduardo Lima',
+        password: await bcrypt.hash('gestor123', 10),
         role: UserRole.GESTOR,
-        registration: 'GAB001',
-        position: 'Diretor Executivo',
-        departmentId: departments[5].id, // Gabinete
-        room: 'Sala da Diretoria',
-        phone: '(11) 99999-0006'
+        registration: 'GES001',
+        phone: '(11) 99999-0002',
+        position: 'Diretor de Finanças',
+        departmentId: departments[2].id,
+        room: 'Sala 301'
+      }
+    }),
+    // Técnico
+    prisma.user.create({
+      data: {
+        email: 'tecnico@prefeitura.gov.br',
+        name: 'Ricardo Silva Santos',
+        password: await bcrypt.hash('tecnico123', 10),
+        role: UserRole.TECNICO,
+        registration: 'TEC001',
+        phone: '(11) 99999-0003',
+        position: 'Técnico em Informática',
+        departmentId: departments[0].id,
+        room: 'Sala 202'
+      }
+    }),
+    // Funcionário
+    prisma.user.create({
+      data: {
+        email: 'funcionario@prefeitura.gov.br',
+        name: 'Maria Santos Oliveira',
+        password: await bcrypt.hash('funcionario123', 10),
+        role: UserRole.FUNCIONARIO,
+        registration: 'FUN001',
+        phone: '(11) 99999-0004',
+        position: 'Auxiliar Administrativo',
+        departmentId: departments[1].id,
+        room: 'Sala 101'
+      }
+    }),
+    // Aprovador
+    prisma.user.create({
+      data: {
+        email: 'aprovador@prefeitura.gov.br',
+        name: 'João Carlos Silva',
+        password: await bcrypt.hash('aprovador123', 10),
+        role: UserRole.APROVADOR,
+        registration: 'APR001',
+        phone: '(11) 99999-0005',
+        position: 'Coordenador de TI',
+        departmentId: departments[0].id,
+        room: 'Sala 203'
+      }
+    }),
+    // Funcionários adicionais
+    prisma.user.create({
+      data: {
+        email: 'ana.costa@prefeitura.gov.br',
+        name: 'Ana Paula Costa',
+        password: await bcrypt.hash('ana123', 10),
+        role: UserRole.FUNCIONARIO,
+        registration: 'FUN002',
+        phone: '(11) 99999-0006',
+        position: 'Enfermeira',
+        departmentId: departments[3].id,
+        room: 'Consultório 1'
+      }
+    }),
+    prisma.user.create({
+      data: {
+        email: 'roberto.mendes@prefeitura.gov.br',
+        name: 'Roberto Mendes',
+        password: await bcrypt.hash('roberto123', 10),
+        role: UserRole.FUNCIONARIO,
+        registration: 'FUN003',
+        phone: '(11) 99999-0007',
+        position: 'Coordenador Pedagógico',
+        departmentId: departments[4].id,
+        room: 'Sala 101'
       }
     })
   ])
 
-  console.log('🏪 Criando fornecedores...')
+  const [admin, gestor, tecnico, funcionario, aprovador, ana, roberto] = users
+
+  // 5. Criar Ordens de Serviço com fluxo completo
+  console.log('📋 Criando ordens de serviço...')
+
+  // OS 1: Finalizada com compra de material
+  const os1 = await prisma.serviceOrder.create({
+    data: {
+      number: 'OS-2025-001',
+      title: 'Computador não liga no RH',
+      description: 'O computador da recepção do RH não está ligando. Quando pressionamos o botão power, não há qualquer resposta. O equipamento é utilizado para atendimento ao público.',
+      status: ServiceOrderStatus.FINALIZADA,
+      priority: Priority.ALTA,
+      category: ProblemCategory.HARDWARE,
+      createdById: funcionario.id,
+      assignedToId: tecnico.id,
+      diagnosis: 'Fonte de alimentação queimada',
+      solution: 'Fonte queimada substituída. Computador funcionando normalmente.',
+      requiresMaterial: true,
+      materialDescription: 'Fonte de alimentação ATX 500W 80+ Bronze',
+      createdAt: new Date('2025-08-10'),
+      updatedAt: new Date('2025-08-15'),
+      completedAt: new Date('2025-08-15')
+    }
+  })
+
+  // Orçamentos para OS1
+  const quote1_1 = await prisma.quote.create({
+    data: {
+      serviceOrderId: os1.id,
+      supplierId: suppliers[0].id,
+      requestedById: tecnico.id,
+      items: [
+        {
+          description: 'Fonte ATX 500W 80+ Bronze Corsair',
+          quantity: 1,
+          unitPrice: 180.00,
+          totalPrice: 180.00
+        }
+      ],
+      totalValue: 180.00,
+      status: QuoteStatus.REJEITADO,
+      validity: new Date('2025-08-20'),
+      observations: 'Marca premium, garantia de 3 anos',
+      createdAt: new Date('2025-08-12'),
+      updatedAt: new Date('2025-08-13'),
+      rejectedAt: new Date('2025-08-13'),
+      rejectionReason: 'Preço muito alto comparado com outras opções'
+    }
+  })
+
+  const quote1_2 = await prisma.quote.create({
+    data: {
+      serviceOrderId: os1.id,
+      supplierId: suppliers[1].id,
+      requestedById: tecnico.id,
+      items: [
+        {
+          description: 'Fonte ATX 500W 80+ Bronze Genérica',
+          quantity: 1,
+          unitPrice: 120.00,
+          totalPrice: 120.00
+        }
+      ],
+      totalValue: 120.00,
+      status: QuoteStatus.APROVADO,
+      validity: new Date('2025-08-20'),
+      observations: 'Melhor custo-benefício',
+      createdAt: new Date('2025-08-12'),
+      updatedAt: new Date('2025-08-14'),
+      approvedAt: new Date('2025-08-14')
+    }
+  })
+
+  // Ordem de compra para OS1
+  const po1 = await prisma.purchaseOrder.create({
+    data: {
+      number: 'OC-2025-001',
+      serviceOrderId: os1.id,
+      quoteId: quote1_2.id,
+      items: [
+        {
+          description: 'Fonte ATX 500W 80+ Bronze Genérica',
+          quantity: 1,
+          unitPrice: 120.00,
+          totalPrice: 120.00
+        }
+      ],
+      totalValue: 120.00,
+      deliveryAddress: 'Prefeitura Municipal - Recepção do RH, Sala 101',
+      status: PurchaseOrderStatus.ENTREGUE,
+      approvedById: aprovador.id,
+      signedById: gestor.id,
+      receivedById: tecnico.id,
+      createdAt: new Date('2025-08-14'),
+      updatedAt: new Date('2025-08-15'),
+      approvedAt: new Date('2025-08-14'),
+      signedAt: new Date('2025-08-14'),
+      deliveredAt: new Date('2025-08-15'),
+      observations: 'Material entregue conforme solicitado'
+    }
+  })
+
+  // OS 2: Em execução aguardando material
+  const os2 = await prisma.serviceOrder.create({
+    data: {
+      number: 'OS-2025-002',
+      title: 'Impressora laser com defeito na Educação',
+      description: 'A impressora laser HP LaserJet do setor pedagógico está apresentando problema na impressão. As páginas saem com manchas pretas e a qualidade está ruim.',
+      status: ServiceOrderStatus.AGUARDANDO_APROVACAO,
+      priority: Priority.NORMAL,
+      category: ProblemCategory.IMPRESSORA,
+      createdById: roberto.id,
+      assignedToId: tecnico.id,
+      diagnosis: 'Toner vazio e cilindro com desgaste. Necessário substituir ambos para resolver o problema.',
+      requiresMaterial: true,
+      materialDescription: 'Toner HP 85A original e cilindro compatível',
+      createdAt: new Date('2025-08-12'),
+      updatedAt: new Date('2025-08-13')
+    }
+  })
+
+  // Orçamentos para OS2 (aguardando aprovação)
+  await Promise.all([
+    prisma.quote.create({
+      data: {
+        serviceOrderId: os2.id,
+        supplierId: suppliers[2].id,
+        requestedById: tecnico.id,
+        items: [
+          {
+            description: 'Toner HP 85A Original',
+            quantity: 1,
+            unitPrice: 180.00,
+            totalPrice: 180.00
+          },
+          {
+            description: 'Cilindro HP Compatível',
+            quantity: 1,
+            unitPrice: 120.00,
+            totalPrice: 120.00
+          }
+        ],
+        totalValue: 300.00,
+        status: QuoteStatus.EM_ANALISE,
+        validity: new Date('2025-08-25'),
+        observations: 'Produtos originais com garantia',
+        createdAt: new Date('2025-08-13'),
+        updatedAt: new Date('2025-08-13')
+      }
+    }),
+    prisma.quote.create({
+      data: {
+        serviceOrderId: os2.id,
+        supplierId: suppliers[0].id,
+        requestedById: tecnico.id,
+        items: [
+          {
+            description: 'Toner HP 85A Compatível',
+            quantity: 1,
+            unitPrice: 120.00,
+            totalPrice: 120.00
+          },
+          {
+            description: 'Cilindro HP Compatível',
+            quantity: 1,
+            unitPrice: 100.00,
+            totalPrice: 100.00
+          }
+        ],
+        totalValue: 220.00,
+        status: QuoteStatus.EM_ANALISE,
+        validity: new Date('2025-08-25'),
+        observations: 'Produtos compatíveis com boa qualidade',
+        createdAt: new Date('2025-08-13'),
+        updatedAt: new Date('2025-08-13')
+      }
+    })
+  ])
+
+  // OS 3: Recém criada
+  const os3 = await prisma.serviceOrder.create({
+    data: {
+      number: 'OS-2025-003',
+      title: 'Internet lenta no Posto de Saúde',
+      description: 'A conexão de internet no posto de saúde está muito lenta, dificultando o acesso aos sistemas de prontuário eletrônico e consulta de exames.',
+      status: ServiceOrderStatus.EM_ANALISE,
+      priority: Priority.ALTA,
+      category: ProblemCategory.REDE,
+      createdById: ana.id,
+      assignedToId: tecnico.id,
+      createdAt: new Date('2025-08-13'),
+      updatedAt: new Date('2025-08-13')
+    }
+  })
+
+  // OS 4: Problema de software
+  const os4 = await prisma.serviceOrder.create({
+    data: {
+      number: 'OS-2025-004',
+      title: 'Sistema financeiro com erro',
+      description: 'O sistema de gestão financeira está apresentando erro ao gerar relatórios mensais. A mensagem de erro indica problema na base de dados.',
+      status: ServiceOrderStatus.ABERTA,
+      priority: Priority.URGENTE,
+      category: ProblemCategory.SOFTWARE,
+      createdById: funcionario.id,
+      createdAt: new Date('2025-08-13'),
+      updatedAt: new Date('2025-08-13')
+    }
+  })
+
+  // OS 5: Problema telefônico
+  const os5 = await prisma.serviceOrder.create({
+    data: {
+      number: 'OS-2025-005',
+      title: 'Telefone sem linha no RH',
+      description: 'O telefone da sala 105 do RH não está funcionando. Não há sinal de linha e não conseguimos fazer ou receber chamadas.',
+      status: ServiceOrderStatus.AGUARDANDO_DESLOCAMENTO,
+      priority: Priority.NORMAL,
+      category: ProblemCategory.TELEFONIA,
+      createdById: funcionario.id,
+      assignedToId: tecnico.id,
+      createdAt: new Date('2025-08-13'),
+      updatedAt: new Date('2025-08-13')
+    }
+  })
+
+  console.log('✅ Seed concluído com sucesso!')
+  console.log(`📊 Dados criados:`)
+  console.log(`   - ${departments.length} departamentos`)
+  console.log(`   - ${suppliers.length} fornecedores`)
+  console.log(`   - ${users.length} usuários`)
+  console.log(`   - 5 ordens de serviço (com diferentes status)`)
+  console.log(`   - 4 orçamentos`)
+  console.log(`   - 1 ordem de compra`)
   
-  // Criar fornecedores
-  const suppliers = await Promise.all([
-    prisma.supplier.create({
-      data: {
-        name: 'TechSolutions Ltda',
-        cnpj: '12.345.678/0001-90',
-        email: 'vendas@techsolutions.com.br',
-        phone: '(11) 4000-1000',
-        address: 'Rua da Tecnologia, 123 - São Paulo/SP',
-        contact: 'Roberto Vendas',
-        categories: JSON.stringify(['HARDWARE', 'SOFTWARE'])
-      }
-    }),
-    
-    prisma.supplier.create({
-      data: {
-        name: 'InfoMateriais S/A',
-        cnpj: '23.456.789/0001-01',
-        email: 'contato@infomateriais.com.br',
-        phone: '(11) 4000-2000',
-        address: 'Av. dos Computadores, 456 - São Paulo/SP',
-        contact: 'Sandra Comercial',
-        categories: JSON.stringify(['HARDWARE', 'REDE'])
-      }
-    }),
-    
-    prisma.supplier.create({
-      data: {
-        name: 'PrintMax Suprimentos',
-        cnpj: '34.567.890/0001-12',
-        email: 'vendas@printmax.com.br',
-        phone: '(11) 4000-3000',
-        address: 'Rua das Impressoras, 789 - São Paulo/SP',
-        contact: 'Carlos Impressão',
-        categories: JSON.stringify(['IMPRESSORA'])
-      }
-    })
-  ])
-
-  console.log('📋 Criando ordens de serviço de exemplo...')
-  
-  // Criar algumas OS de exemplo
-  const serviceOrders = await Promise.all([
-    prisma.serviceOrder.create({
-      data: {
-        number: 'OS-2025-001',
-        title: 'Impressora não funciona',
-        description: 'A impressora da sala 201 não está imprimindo. Aparece erro de papel atolado, mas não há papel atolado visível.',
-        category: ProblemCategory.IMPRESSORA,
-        priority: Priority.NORMAL,
-        status: ServiceOrderStatus.ABERTA,
-        createdById: users[1].id, // Maria
-      }
-    }),
-    
-    prisma.serviceOrder.create({
-      data: {
-        number: 'OS-2025-002',
-        title: 'Computador muito lento',
-        description: 'O computador da enfermagem está extremamente lento. Demora mais de 5 minutos para abrir qualquer programa.',
-        category: ProblemCategory.HARDWARE,
-        priority: Priority.ALTA,
-        status: ServiceOrderStatus.EM_ANALISE,
-        createdById: users[2].id, // João
-        assignedToId: users[4].id, // Carlos Tech
-        assignedAt: new Date()
-      }
-    }),
-    
-    prisma.serviceOrder.create({
-      data: {
-        number: 'OS-2025-003',
-        title: 'Sistema de folha não acessa',
-        description: 'Não conseguimos acessar o sistema de folha de pagamento. Aparece erro de conexão.',
-        category: ProblemCategory.SISTEMA,
-        priority: Priority.URGENTE,
-        status: ServiceOrderStatus.EM_EXECUCAO,
-        createdById: users[3].id, // Ana
-        assignedToId: users[4].id, // Carlos Tech
-        assignedAt: new Date(Date.now() - 1000 * 60 * 60), // 1 hora atrás
-        startedAt: new Date(Date.now() - 1000 * 60 * 30), // 30 minutos atrás
-      }
-    })
-  ])
-
-  console.log('✅ Seed concluído!')
-  console.log('📊 Dados criados:')
-  console.log(`   • ${departments.length} departamentos`)
-  console.log(`   • ${users.length} usuários`)
-  console.log(`   • ${suppliers.length} fornecedores`)
-  console.log(`   • ${serviceOrders.length} ordens de serviço`)
-  console.log('\n👥 Usuários de teste:')
-  console.log('   • admin@prefeitura.gov.br (senha: 123456) - ADMIN')
-  console.log('   • maria.educacao@prefeitura.gov.br (senha: 123456) - FUNCIONARIO')
-  console.log('   • joao.saude@prefeitura.gov.br (senha: 123456) - FUNCIONARIO')
-  console.log('   • ana.rh@prefeitura.gov.br (senha: 123456) - APROVADOR')
-  console.log('   • carlos.tech@prefeitura.gov.br (senha: 123456) - TECNICO')
-  console.log('   • pedro.tech@prefeitura.gov.br (senha: 123456) - TECNICO')
-  console.log('   • gestor@prefeitura.gov.br (senha: 123456) - GESTOR')
+  console.log('\n🔐 Credenciais de acesso:')
+  console.log('Admin: admin@prefeitura.gov.br / admin123')
+  console.log('Gestor: gestor@prefeitura.gov.br / gestor123')
+  console.log('Técnico: tecnico@prefeitura.gov.br / tecnico123')
+  console.log('Funcionário: funcionario@prefeitura.gov.br / funcionario123')
+  console.log('Aprovador: aprovador@prefeitura.gov.br / aprovador123')
 }
 
 main()
   .catch((e) => {
-    console.error(e)
+    console.error('❌ Erro durante o seed:', e)
     process.exit(1)
   })
   .finally(async () => {

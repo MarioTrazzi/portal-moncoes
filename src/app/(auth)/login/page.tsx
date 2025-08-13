@@ -41,11 +41,11 @@ export default function LoginPage() {
 
   // Usuários de exemplo para facilitar o teste
   const exampleUsers = [
-    { email: 'maria.educacao@prefeitura.gov.br', role: 'Funcionário', dept: 'Educação' },
-    { email: 'carlos.tech@prefeitura.gov.br', role: 'Técnico', dept: 'TI' },
-    { email: 'ana.rh@prefeitura.gov.br', role: 'Aprovador', dept: 'RH' },
-    { email: 'gestor@prefeitura.gov.br', role: 'Gestor', dept: 'Gabinete' },
-    { email: 'admin@prefeitura.gov.br', role: 'Admin', dept: 'TI' }
+    { email: 'funcionario@prefeitura.gov.br', role: 'Funcionário', dept: 'RH', password: 'funcionario123' },
+    { email: 'tecnico@prefeitura.gov.br', role: 'Técnico', dept: 'TI', password: 'tecnico123' },
+    { email: 'aprovador@prefeitura.gov.br', role: 'Aprovador', dept: 'TI', password: 'aprovador123' },
+    { email: 'gestor@prefeitura.gov.br', role: 'Gestor', dept: 'Finanças', password: 'gestor123' },
+    { email: 'admin@prefeitura.gov.br', role: 'Admin', dept: 'TI', password: 'admin123' }
   ]
 
   return (
@@ -70,7 +70,7 @@ export default function LoginPage() {
             <CardHeader>
               <CardTitle className="text-sm">Usuários para Teste</CardTitle>
               <CardDescription className="text-xs">
-                Senha padrão: <code className="bg-gray-200 px-1 rounded">123456</code>
+                Clique em "Usar" para preencher automaticamente
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -78,11 +78,15 @@ export default function LoginPage() {
                 <div 
                   key={index}
                   className="flex justify-between items-center p-2 bg-white dark:bg-gray-800 rounded text-xs cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
-                  onClick={() => setEmail(user.email)}
+                  onClick={() => {
+                    setEmail(user.email)
+                    setPassword(user.password)
+                  }}
                 >
                   <div>
                     <div className="font-medium">{user.email}</div>
                     <div className="text-gray-500">{user.role} • {user.dept}</div>
+                    <div className="text-gray-400 text-xs">Senha: {user.password}</div>
                   </div>
                   <Button variant="ghost" size="sm" className="h-6 text-xs">
                     Usar
