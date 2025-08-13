@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { UserRole } from '@prisma/client'
+import { useHydration } from '@/hooks/use-hydration'
 
 interface User {
   id: string
@@ -42,15 +43,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [permissions, setPermissions] = useState<UserPermissions | null>(null)
   const [loading, setLoading] = useState(true)
+  const hydrated = useHydration()
 
   // Verificar se há usuário logado ao carregar a página
   useEffect(() => {
-    checkAuth()
-  }, [])
+    if (hydrated) {
+      checkAuth()
+    }
+  }, [hydrated])
 
   const checkAuth = async () => {
     try {
-      const token = getCookie('auth_token')
+      const token = getCookie('auth-token')
       if (!token) {
         setLoading(false)
         return
@@ -68,11 +72,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setPermissions(data.permissions)
       } else {
         // Token inválido, remover
-        deleteCookie('auth_token')
+        deleteCookie('auth-token')
       }
     } catch (error) {
       console.error('Erro ao verificar autenticação:', error)
-      deleteCookie('auth_token')
+      deleteCookie('auth-token')
     } finally {
       setLoading(false)
     }
@@ -91,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (response.ok) {
         const data = await response.json()
-        setCookie('auth_token', data.token)
+        setCookie('auth-token', data.token)
         setUser(data.user)
         setPermissions(data.permissions)
         return true
@@ -107,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = () => {
-    deleteCookie('auth_token')
+    deleteCookie('auth-token')
     setUser(null)
     setPermissions(null)
   }

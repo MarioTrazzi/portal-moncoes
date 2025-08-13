@@ -10,10 +10,12 @@ import { Badge } from '@/components/ui/badge'
 import { Plus, ArrowRight, Users, Wrench, FileText, BarChart3, RefreshCw } from 'lucide-react'
 import { UserRole } from '@prisma/client'
 import { useAuth } from '@/contexts/auth-context'
+import { useHydration } from '@/hooks/use-hydration'
 import Link from 'next/link'
 
 export default function DashboardPage() {
   const { user, permissions, loading } = useAuth()
+  const hydrated = useHydration()
 
   const getRoleLabel = (role: UserRole) => {
     const labels = {
@@ -37,7 +39,7 @@ export default function DashboardPage() {
     return colors[role] || 'bg-gray-100 text-gray-800'
   }
 
-  if (loading) {
+  if (!hydrated || loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <RefreshCw className="h-8 w-8 animate-spin" />

@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Loader2, RefreshCw, TrendingUp, AlertTriangle, CheckCircle, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useHydration } from '@/hooks/use-hydration'
 import Link from 'next/link'
 
 interface DashboardStats {
@@ -49,8 +50,11 @@ export function RealtimeStats({ refreshInterval = 30, className }: RealtimeStats
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const hydrated = useHydration()
 
   const fetchStats = async () => {
+    if (!hydrated) return
+    
     try {
       setIsLoading(true)
       setError(null)
@@ -88,15 +92,17 @@ export function RealtimeStats({ refreshInterval = 30, className }: RealtimeStats
   }
 
   useEffect(() => {
-    fetchStats()
-  }, [])
+    if (hydrated) {
+      fetchStats()
+    }
+  }, [hydrated])
 
   useEffect(() => {
-    if (!autoRefresh) return
+    if (!hydrated || !autoRefresh) return
 
     const interval = setInterval(fetchStats, refreshInterval * 1000)
     return () => clearInterval(interval)
-  }, [autoRefresh, refreshInterval])
+  }, [hydrated, autoRefresh, refreshInterval])
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('pt-BR', {

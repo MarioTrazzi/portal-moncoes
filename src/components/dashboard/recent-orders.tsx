@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarInitials } from '@/components/ui/avatar'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Clock, User, MapPin } from 'lucide-react'
+import { useHydration } from '@/hooks/use-hydration'
 import Link from 'next/link'
 
 interface ServiceOrder {
@@ -41,12 +42,17 @@ export function RecentOrders({
 }: RecentOrdersProps) {
   const [orders, setOrders] = useState<ServiceOrder[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const hydrated = useHydration()
 
   useEffect(() => {
-    fetchRecentOrders()
-  }, [showAllOrders, userId, limit])
+    if (hydrated) {
+      fetchRecentOrders()
+    }
+  }, [hydrated, showAllOrders, userId, limit])
 
   const fetchRecentOrders = async () => {
+    if (!hydrated) return
+    
     try {
       setIsLoading(true)
       
