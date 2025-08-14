@@ -89,32 +89,18 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-    const { status, assignedToId, diagnosis, solution, observations, estimatedHours, actualHours } = body
+    const { status, assignedToId, diagnosis, solution, observations, estimatedHours, actualHours, materialDescription, materialJustification } = body
 
-    // Obter usuário atual baseado no testUser (simulação de autenticação)
-    const url = new URL(request.url)
-    const testUser = url.searchParams.get('testUser')
-    
-    const testUserMapping = {
-      funcionario: 'funcionario@prefeitura.gov.br',  // FUNCIONARIO
-      tecnico: 'tecnico@prefeitura.gov.br',         // TECNICO  
-      admin: 'admin@prefeitura.gov.br',                 // ADMIN
-      gestor: 'gestor@prefeitura.gov.br',              // GESTOR
-      aprovador: 'admin@prefeitura.gov.br'            // APROVADOR
-    }
-    
-    const userEmail = testUserMapping[testUser as keyof typeof testUserMapping] || testUserMapping.funcionario
-    
-    const currentUser = await prisma.user.findUnique({
-      where: { email: userEmail }
-    })
-
-    if (!currentUser) {
+    // Verificar autenticação com JWT
+    const authResult = await verifyAuth(request)
+    if (authResult.error || !authResult.user) {
       return NextResponse.json(
-        { error: "Usuário não encontrado" },
-        { status: 401 }
+        { success: false, error: authResult.error || "Usuário não autenticado" },
+        { status: authResult.status || 401 }
       )
     }
+
+    const currentUser = authResult.user
 
     // Verificar se a OS existe
     const existingOS = await prisma.serviceOrder.findUnique({
@@ -126,34 +112,80 @@ export async function PUT(
 
     if (!existingOS) {
       return NextResponse.json(
-        { error: "OS não encontrada" },
+        { success: false, error: "OS não encontrada" },
         { status: 404 }
       )
     }
 
-    // Verificar permissões baseadas nas regras de negócio
+    // Verificar permissões baseadas nas regras de negócio e workflow
     const isTechnician = currentUser.role === 'TECNICO'
     const isCreator = currentUser.id === existingOS.createdById
-    const canEdit = isTechnician || (isCreator && existingOS.status === 'ABERTA')
+    const isApprover = currentUser.role === 'APROVADOR'
+    const isManager = currentUser.role === 'GESTOR'
+    const isAdmin = currentUser.role === 'ADMIN'
 
-    // Verificar se pode editar campos específicos
-    if (status !== undefined && !canEdit) {
-      return NextResponse.json(
-        { error: "Você não tem permissão para alterar o status desta OS" },
-        { status: 403 }
-      )
+    // Permissão geral para editar campos não-críticos (observações, etc)
+    const canEditGeneral = isTechnician || isCreator || isApprover || isManager || isAdmin
+
+    // Permissões para alteração de status
+    let canChangeStatus = false
+    
+    if (status !== undefined) {
+      // Verificar se o usuário pode fazer esta transição de status específica
+      switch (existingOS.status) {
+        case 'ABERTA':
+          canChangeStatus = isTechnician && status === 'EM_ANALISE'
+          break
+        case 'EM_ANALISE':
+          canChangeStatus = isTechnician && (status === 'AGUARDANDO_MATERIAL' || status === 'EM_EXECUCAO')
+          break
+        case 'AGUARDANDO_MATERIAL':
+          canChangeStatus = (isManager || isAdmin) && status === 'AGUARDANDO_ORCAMENTO'
+          break
+        case 'AGUARDANDO_ORCAMENTO':
+          canChangeStatus = (isApprover || isAdmin) && status === 'AGUARDANDO_ASSINATURA'
+          break
+        case 'ORCAMENTOS_RECEBIDOS':
+          canChangeStatus = (isApprover || isAdmin) && status === 'AGUARDANDO_ASSINATURA'
+          break
+        case 'AGUARDANDO_ASSINATURA':
+          canChangeStatus = isAdmin && status === 'MATERIAL_APROVADO'
+          break
+        case 'AGUARDANDO_APROVACAO':
+          canChangeStatus = (isManager || isAdmin) && status === 'MATERIAL_APROVADO'
+          break
+        case 'MATERIAL_APROVADO':
+          canChangeStatus = isTechnician && status === 'AGUARDANDO_DESLOCAMENTO'
+          break
+        case 'AGUARDANDO_DESLOCAMENTO':
+          canChangeStatus = isTechnician && status === 'EM_EXECUCAO'
+          break
+        case 'EM_EXECUCAO':
+          canChangeStatus = isTechnician && status === 'FINALIZADA'
+          break
+        default:
+          canChangeStatus = false
+      }
+
+      if (!canChangeStatus) {
+        return NextResponse.json(
+          { success: false, error: "Você não tem permissão para fazer esta alteração de status" },
+          { status: 403 }
+        )
+      }
     }
 
+    // Verificar se pode editar campos técnicos
     if ((diagnosis !== undefined || solution !== undefined) && !isTechnician) {
       return NextResponse.json(
-        { error: "Apenas técnicos podem adicionar diagnóstico ou solução" },
+        { success: false, error: "Apenas técnicos podem adicionar diagnóstico ou solução" },
         { status: 403 }
       )
     }
 
-    if (observations !== undefined && !canEdit) {
+    if (observations !== undefined && !canEditGeneral) {
       return NextResponse.json(
-        { error: "Você não tem permissão para editar observações desta OS" },
+        { success: false, error: "Você não tem permissão para editar observações desta OS" },
         { status: 403 }
       )
     }
@@ -166,6 +198,9 @@ export async function PUT(
     if (solution !== undefined) updateData.solution = solution
     if (observations !== undefined) updateData.observations = observations
     if (estimatedHours !== undefined) updateData.estimatedHours = estimatedHours
+    if (actualHours !== undefined) updateData.actualHours = actualHours
+    if (materialDescription !== undefined) updateData.materialDescription = materialDescription
+    if (materialJustification !== undefined) updateData.materialJustification = materialJustification
     if (actualHours !== undefined) updateData.actualHours = actualHours
 
     // Atualizar datas baseadas no status
