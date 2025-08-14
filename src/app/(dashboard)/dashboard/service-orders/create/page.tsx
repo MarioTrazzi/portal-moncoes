@@ -32,10 +32,30 @@ export default function CreateServiceOrderPage() {
   useEffect(() => {
     const loadCurrentUser = async () => {
       try {
-        const response = await fetch("/api/auth/me")
+        // Pegar token do cookie
+        const getCookie = (name: string) => {
+          const value = `; ${document.cookie}`
+          const parts = value.split(`; ${name}=`)
+          if (parts.length === 2) return parts.pop()?.split(';').shift()
+          return undefined
+        }
+        
+        const token = getCookie('auth-token')
+        if (!token) {
+          throw new Error("Token de autenticação não encontrado")
+        }
+        
+        const response = await fetch("/api/auth/me", {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+        
         if (response.ok) {
           const userData = await response.json()
-          setCurrentUser(userData)
+          setCurrentUser(userData.user)
+        } else {
+          throw new Error("Erro ao carregar usuário")
         }
       } catch (error) {
         console.error("Erro ao carregar usuário:", error)
@@ -56,6 +76,19 @@ export default function CreateServiceOrderPage() {
     setIsLoading(true)
     
     try {
+      // Pegar token do cookie
+      const getCookie = (name: string) => {
+        const value = `; ${document.cookie}`
+        const parts = value.split(`; ${name}=`)
+        if (parts.length === 2) return parts.pop()?.split(';').shift()
+        return undefined
+      }
+      
+      const token = getCookie('auth-token')
+      if (!token) {
+        throw new Error("Token de autenticação não encontrado")
+      }
+      
       // Preparar FormData para incluir arquivos
       const formData = new FormData()
       
@@ -85,6 +118,9 @@ export default function CreateServiceOrderPage() {
 
       const response = await fetch("/api/service-orders", {
         method: "POST",
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
         body: formData,
       })
 

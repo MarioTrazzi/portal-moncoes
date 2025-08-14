@@ -231,9 +231,30 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
   const fetchServiceOrder = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`/api/service-orders/${resolvedParams.id}`)
+      
+      // Pegar token do cookie
+      const getCookie = (name: string) => {
+        const value = `; ${document.cookie}`
+        const parts = value.split(`; ${name}=`)
+        if (parts.length === 2) return parts.pop()?.split(';').shift()
+        return undefined
+      }
+      
+      const token = getCookie('auth-token')
+      if (!token) {
+        throw new Error("Token de autenticação não encontrado")
+      }
+      
+      const response = await fetch(`/api/service-orders/${resolvedParams.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
       
       if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error("Sessão expirada. Faça login novamente.")
+        }
         throw new Error("Ordem de serviço não encontrada")
       }
 
@@ -258,6 +279,19 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
     try {
       setSaving(true)
       
+      // Pegar token do cookie
+      const getCookie = (name: string) => {
+        const value = `; ${document.cookie}`
+        const parts = value.split(`; ${name}=`)
+        if (parts.length === 2) return parts.pop()?.split(';').shift()
+        return undefined
+      }
+      
+      const token = getCookie('auth-token')
+      if (!token) {
+        throw new Error("Token de autenticação não encontrado")
+      }
+      
       const updateData = {
         diagnosis: diagnosis.trim() || undefined,
         solution: solution.trim() || undefined, 
@@ -272,6 +306,7 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
         },
         body: JSON.stringify(updateData),
       })
@@ -317,6 +352,19 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
         return
       }
 
+      // Pegar token do cookie
+      const getCookie = (name: string) => {
+        const value = `; ${document.cookie}`
+        const parts = value.split(`; ${name}=`)
+        if (parts.length === 2) return parts.pop()?.split(';').shift()
+        return undefined
+      }
+      
+      const token = getCookie('auth-token')
+      if (!token) {
+        throw new Error("Token de autenticação não encontrado")
+      }
+
       const updateData = {
         status: action.nextStatus,
         diagnosis: diagnosis.trim() || undefined,
@@ -332,6 +380,7 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
         },
         body: JSON.stringify(updateData),
       })

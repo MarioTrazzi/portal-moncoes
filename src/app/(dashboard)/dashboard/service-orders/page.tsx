@@ -98,8 +98,29 @@ export default function ServiceOrdersPage() {
       setIsLoading(true)
       setError(null)
       
-      const response = await fetch('/api/service-orders')
+      // Pegar token do cookie
+      const getCookie = (name: string) => {
+        const value = `; ${document.cookie}`
+        const parts = value.split(`; ${name}=`)
+        if (parts.length === 2) return parts.pop()?.split(';').shift()
+        return undefined
+      }
+      
+      const token = getCookie('auth-token')
+      if (!token) {
+        throw new Error('Token de autenticação não encontrado')
+      }
+      
+      const response = await fetch('/api/service-orders', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
       if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Sessão expirada. Faça login novamente.')
+        }
         throw new Error('Erro ao carregar as ordens de serviço')
       }
       
@@ -107,7 +128,7 @@ export default function ServiceOrdersPage() {
       setServiceOrders(data.serviceOrders || [])
     } catch (error) {
       console.error('Erro ao buscar OS:', error)
-      setError('Não foi possível carregar as ordens de serviço')
+      setError(error instanceof Error ? error.message : 'Não foi possível carregar as ordens de serviço')
       setServiceOrders([])
     } finally {
       setIsLoading(false)

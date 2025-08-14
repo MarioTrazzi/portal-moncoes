@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
 }
 
 // POST - Criar nova OS
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     console.log('=== INÍCIO POST SERVICE ORDER ===')
     
@@ -168,32 +168,19 @@ export async function POST(request: Request) {
 
     console.log('Validação passou')
 
-    // Por enquanto, usar um usuário padrão (depois implementaremos autenticação)
-    console.log('Buscando usuário padrão...')
-    
-    let defaultUser
-    try {
-      defaultUser = await prisma.user.findUnique({
-        where: { email: 'funcionario@prefeitura.gov.br' },
-        include: { department: true }
-      })
-
-      if (!defaultUser) {
-        console.log('Usuário não encontrado!')
-        return NextResponse.json(
-          { error: "Usuário não encontrado" },
-          { status: 404 }
-        )
-      }
-
-      console.log('Usuário encontrado:', defaultUser.id)
-    } catch (dbError) {
-      console.error('Erro ao buscar usuário:', dbError)
+    // Verificar autenticação
+    console.log('Verificando autenticação...')
+    const authResult = await verifyAuth(request)
+    if (authResult.error) {
+      console.log('Erro de autenticação:', authResult.error)
       return NextResponse.json(
-        { error: "Erro ao buscar usuário" },
-        { status: 500 }
+        { error: authResult.error },
+        { status: authResult.status }
       )
     }
+    
+    const currentUser = authResult.user!
+    console.log('Usuário autenticado:', currentUser.id)
 
     // Gerar número sequencial da OS
     console.log('Gerando número da OS...')
@@ -239,7 +226,7 @@ export async function POST(request: Request) {
           category: category as any,
           priority: priority as any,
           number: orderNumber,
-          createdById: defaultUser.id,
+          createdById: currentUser.id,
         },
         include: {
           createdBy: {
@@ -339,7 +326,7 @@ export async function POST(request: Request) {
       await prisma.auditLog.create({
         data: {
           serviceOrderId: serviceOrder.id,
-          userId: defaultUser.id,
+          userId: currentUser.id,
           action: "OS_CREATED",
           details: {
             orderNumber: serviceOrder.number,
