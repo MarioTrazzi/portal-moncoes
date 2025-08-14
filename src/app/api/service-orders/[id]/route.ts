@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { NotificationService } from "@/lib/notification-service"
+import { verifyAuth } from "@/lib/auth"
 
 // GET - Buscar OS por ID
 export async function GET(
@@ -8,6 +9,15 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Verificar autenticação
+    const authResult = await verifyAuth(request)
+    if (authResult.error) {
+      return NextResponse.json(
+        { success: false, error: authResult.error },
+        { status: authResult.status }
+      )
+    }
+    
     const { id } = await params
     const serviceOrder = await prisma.serviceOrder.findUnique({
       where: {
@@ -53,16 +63,19 @@ export async function GET(
 
     if (!serviceOrder) {
       return NextResponse.json(
-        { error: "OS não encontrada" },
+        { success: false, error: "OS não encontrada" },
         { status: 404 }
       )
     }
 
-    return NextResponse.json(serviceOrder)
+    return NextResponse.json({
+      success: true,
+      data: serviceOrder
+    })
   } catch (error) {
     console.error("Erro ao buscar OS:", error)
     return NextResponse.json(
-      { error: "Erro interno do servidor" },
+      { success: false, error: "Erro interno do servidor" },
       { status: 500 }
     )
   }
