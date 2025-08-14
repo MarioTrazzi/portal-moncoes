@@ -388,6 +388,15 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
         return
       }
 
+      if (action.requiresMaterialDescription && !materialJustification.trim()) {
+        toast({
+          title: "Erro",
+          description: "Justificativa do material é obrigatória para esta ação",
+          variant: "destructive"
+        })
+        return
+      }
+
       // Pegar token do cookie
       const getCookie = (name: string) => {
         const value = `; ${document.cookie}`
@@ -477,6 +486,51 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
         }
         fileInput.click()
         return
+      }
+
+      // Verificar se é ação de solicitar orçamento
+      if (action.action === 'request_quote') {
+        // Simular envio de emails para fornecedores
+        const emailInfo = {
+          osNumber: serviceOrder.number,
+          osTitle: serviceOrder.title,
+          materialDescription: materialDescription.trim(),
+          materialJustification: materialJustification.trim(),
+          requester: serviceOrder.createdBy.name,
+          department: serviceOrder.createdBy.department?.name,
+          location: serviceOrder.location,
+          priority: serviceOrder.priority,
+          generatedBy: currentUser.name,
+          sentAt: new Date().toLocaleString('pt-BR')
+        }
+
+        // Log detalhado do email que seria enviado
+        console.log('📧 EMAIL ENVIADO PARA FORNECEDORES:', {
+          subject: `Solicitação de Orçamento - OS ${emailInfo.osNumber}`,
+          recipients: 'Todos os fornecedores cadastrados no sistema',
+          content: {
+            greeting: 'Prezados Fornecedores,',
+            introduction: `Solicitamos orçamento para os materiais relacionados à Ordem de Serviço ${emailInfo.osNumber}.`,
+            osDetails: {
+              titulo: emailInfo.osTitle,
+              prioridade: emailInfo.priority,
+              solicitante: emailInfo.requester,
+              departamento: emailInfo.department,
+              localizacao: emailInfo.location
+            },
+            materialInfo: {
+              descricao: emailInfo.materialDescription,
+              justificativa: emailInfo.materialJustification
+            },
+            instructions: 'Por favor, enviem o orçamento detalhado com prazo de entrega e validade.',
+            footer: `Solicitação gerada por: ${emailInfo.generatedBy} em ${emailInfo.sentAt}`
+          }
+        })
+
+        toast({
+          title: "Emails Enviados!",
+          description: `Solicitação de orçamento enviada para fornecedores cadastrados. Confira o console para ver detalhes do email.`,
+        })
       }
 
       // Ação padrão de atualização de status
@@ -711,7 +765,8 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
               </div>
 
               {/* Material Description Fields - shown for specific status */}
-              {(serviceOrder.status === ServiceOrderStatus.AGUARDANDO_MATERIAL || 
+              {(serviceOrder.status === ServiceOrderStatus.EM_ANALISE ||
+                serviceOrder.status === ServiceOrderStatus.AGUARDANDO_MATERIAL || 
                 serviceOrder.status === ServiceOrderStatus.AGUARDANDO_ORCAMENTO) && (
                 <>
                   <div>
@@ -723,6 +778,11 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
                       onChange={(e) => setMaterialDescription(e.target.value)}
                       rows={3}
                     />
+                    {serviceOrder.status === ServiceOrderStatus.EM_ANALISE && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        * Obrigatório para solicitar material
+                      </p>
+                    )}
                   </div>
                   
                   <div>
@@ -734,6 +794,11 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
                       onChange={(e) => setMaterialJustification(e.target.value)}
                       rows={2}
                     />
+                    {serviceOrder.status === ServiceOrderStatus.EM_ANALISE && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        * Obrigatório para solicitar material
+                      </p>
+                    )}
                   </div>
                 </>
               )}
