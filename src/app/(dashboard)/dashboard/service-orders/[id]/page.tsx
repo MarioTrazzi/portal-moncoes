@@ -156,37 +156,73 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
 
       case ServiceOrderStatus.AGUARDANDO_ORCAMENTO:
         if (userRole === UserRole.APROVADOR || userRole === UserRole.ADMIN) {
-          // Aprovador pode enviar para aprovação
+          // Aprovador pode gerar PDF e enviar para assinatura
           actions.push({
-            action: 'send_approval',
-            label: 'Enviar para Aprovação',
-            nextStatus: ServiceOrderStatus.AGUARDANDO_APROVACAO,
-            description: 'Envia orçamento para aprovação superior'
+            action: 'generate_pdf',
+            label: 'Gerar PDF para Assinatura',
+            nextStatus: ServiceOrderStatus.AGUARDANDO_ASSINATURA,
+            description: 'Gera PDF do orçamento e envia para assinatura do prefeito'
+          })
+        }
+        break
+
+      case ServiceOrderStatus.ORCAMENTOS_RECEBIDOS:
+        if (userRole === UserRole.APROVADOR || userRole === UserRole.ADMIN) {
+          // Aprovador pode gerar PDF e enviar para assinatura
+          actions.push({
+            action: 'generate_pdf',
+            label: 'Gerar PDF para Assinatura',
+            nextStatus: ServiceOrderStatus.AGUARDANDO_ASSINATURA,
+            description: 'Gera PDF do orçamento e envia para assinatura do prefeito'
+          })
+        }
+        break
+
+      case ServiceOrderStatus.AGUARDANDO_ASSINATURA:
+        if (userRole === UserRole.ADMIN) {
+          // Apenas prefeito (admin) pode anexar documento assinado
+          actions.push({
+            action: 'attach_signed_document',
+            label: 'Anexar Documento Assinado',
+            nextStatus: ServiceOrderStatus.MATERIAL_APROVADO,
+            description: 'Anexa o documento assinado e aprova o material',
+            requiresFileUpload: true
           })
         }
         break
 
       case ServiceOrderStatus.AGUARDANDO_APROVACAO:
         if (userRole === UserRole.GESTOR || userRole === UserRole.ADMIN) {
-          // Gestor pode aprovar material
+          // Gestor pode aprovar material (fluxo antigo sem assinatura)
           actions.push({
             action: 'approve_material',
             label: 'Aprovar Material',
             nextStatus: ServiceOrderStatus.MATERIAL_APROVADO,
-            description: 'Aprova a compra do material necessário',
-            requiresSignature: true
+            description: 'Aprova a compra do material necessário'
           })
         }
         break
 
       case ServiceOrderStatus.MATERIAL_APROVADO:
         if (userRole === UserRole.TECNICO) {
-          // Técnico pode iniciar execução com material aprovado
+          // Técnico pode iniciar deslocamento
+          actions.push({
+            action: 'start_displacement',
+            label: 'Aguardar Deslocamento',
+            nextStatus: ServiceOrderStatus.AGUARDANDO_DESLOCAMENTO,
+            description: 'Aguarda deslocamento para execução da OS'
+          })
+        }
+        break
+
+      case ServiceOrderStatus.AGUARDANDO_DESLOCAMENTO:
+        if (userRole === UserRole.TECNICO) {
+          // Técnico pode iniciar execução
           actions.push({
             action: 'start_execution_approved',
             label: 'Iniciar Execução',
             nextStatus: ServiceOrderStatus.EM_EXECUCAO,
-            description: 'Inicia execução com material aprovado'
+            description: 'Inicia execução da OS'
           })
         }
         break
@@ -365,6 +401,85 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
         throw new Error("Token de autenticação não encontrado")
       }
 
+      // Verificar se é ação especial de geração de PDF
+      if (action.action === 'generate_pdf') {
+        const response = await fetch(`/api/service-orders/${resolvedParams.id}/generate-pdf`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`
+          }
+        })
+
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || "Erro ao gerar PDF")
+        }
+
+        const result = await response.json()
+        
+        // Atualizar status da OS para AGUARDANDO_ASSINATURA
+        const updateResponse = await fetch(`/api/service-orders/${resolvedParams.id}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({ status: action.nextStatus }),
+        })
+
+        if (!updateResponse.ok) {
+          const error = await updateResponse.json()
+          throw new Error(error.error || "Erro ao atualizar status")
+        }
+
+        toast({
+          title: "Sucesso",
+          description: "PDF gerado com sucesso. OS enviada para assinatura do prefeito."
+        })
+
+        await fetchServiceOrder()
+        return
+      }
+
+      // Verificar se é ação de anexar documento
+      if (action.action === 'attach_signed_document') {
+        // Aqui seria aberto um dialog para upload do arquivo
+        // Por enquanto, vamos simular com um prompt
+        const fileInput = document.createElement('input')
+        fileInput.type = 'file'
+        fileInput.accept = '.pdf'
+        fileInput.onchange = async (event) => {
+          const file = (event.target as HTMLInputElement).files?.[0]
+          if (!file) return
+
+          const formData = new FormData()
+          formData.append('document', file)
+
+          const response = await fetch(`/api/service-orders/${resolvedParams.id}/attach-document`, {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${token}`
+            },
+            body: formData
+          })
+
+          if (!response.ok) {
+            const error = await response.json()
+            throw new Error(error.error || "Erro ao anexar documento")
+          }
+
+          toast({
+            title: "Sucesso",
+            description: "Documento anexado com sucesso. Material aprovado!"
+          })
+
+          await fetchServiceOrder()
+        }
+        fileInput.click()
+        return
+      }
+
+      // Ação padrão de atualização de status
       const updateData = {
         status: action.nextStatus,
         diagnosis: diagnosis.trim() || undefined,

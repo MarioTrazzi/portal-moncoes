@@ -30,8 +30,8 @@ enum ServiceOrderStatus {
   AGUARDANDO_ORCAMENTO     // Aguardando orçamentos dos fornecedores
   ORCAMENTOS_RECEBIDOS     // Orçamentos recebidos, aguardando aprovação
   AGUARDANDO_APROVACAO     // Aguardando aprovação de compra
-  MATERIAL_APROVADO        // Material aprovado pelo gestor
   AGUARDANDO_ASSINATURA    // Aguardando assinatura do prefeito
+  MATERIAL_APROVADO        // Material aprovado pelo gestor
   COMPRA_AUTORIZADA        // Compra autorizada, comprando material
   MATERIAL_RECEBIDO        // Material recebido, retorna para técnico
   FINALIZADA               // OS finalizada
@@ -200,6 +200,9 @@ model ServiceOrder {
   materialJustification String?      // Justificativa da necessidade
   estimatedHours     Float?          // Horas estimadas
   actualHours        Float?          // Horas reais
+  
+  // Documentos e assinaturas
+  attachedDocument   String?         // Guia assinada pelo prefeito (upload)
   
   // Relacionamentos
   quotes         Quote[]
