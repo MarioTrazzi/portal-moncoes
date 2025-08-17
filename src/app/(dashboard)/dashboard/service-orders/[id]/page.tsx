@@ -534,13 +534,25 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
       }
 
       // Ação padrão de atualização de status
-      const updateData = {
-        status: action.nextStatus,
-        diagnosis: diagnosis.trim() || undefined,
-        solution: solution.trim() || undefined, 
-        observations: observations.trim() || undefined,
-        materialDescription: materialDescription.trim() || undefined,
-        materialJustification: materialJustification.trim() || undefined,
+      const updateData: any = {
+        status: action.nextStatus
+      }
+
+      // Incluir campos técnicos apenas se o usuário for técnico ou se os campos têm conteúdo
+      if (currentUser.role === 'TECNICO') {
+        if (diagnosis.trim()) updateData.diagnosis = diagnosis.trim()
+        if (solution.trim()) updateData.solution = solution.trim()
+        if (observations.trim()) updateData.observations = observations.trim()
+      }
+
+      // Incluir campos de material apenas se necessário para a ação
+      if (action.requiresMaterialDescription) {
+        updateData.materialDescription = materialDescription.trim()
+        updateData.materialJustification = materialJustification.trim()
+      } else if (materialDescription.trim() || materialJustification.trim()) {
+        // Incluir se já têm conteúdo
+        if (materialDescription.trim()) updateData.materialDescription = materialDescription.trim()
+        if (materialJustification.trim()) updateData.materialJustification = materialJustification.trim()
       }
 
       const url = `/api/service-orders/${resolvedParams.id}`

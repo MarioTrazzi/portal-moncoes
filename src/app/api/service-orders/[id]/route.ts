@@ -175,15 +175,23 @@ export async function PUT(
       }
     }
 
-    // Verificar se pode editar campos técnicos
-    if ((diagnosis !== undefined || solution !== undefined) && !isTechnician) {
+    // Verificar se pode editar campos técnicos (somente se os campos realmente estão sendo enviados)
+    if ((diagnosis !== undefined && diagnosis !== null && diagnosis.trim() !== '') && !isTechnician) {
       return NextResponse.json(
-        { success: false, error: "Apenas técnicos podem adicionar diagnóstico ou solução" },
+        { success: false, error: "Apenas técnicos podem adicionar diagnóstico" },
         { status: 403 }
       )
     }
 
-    if (observations !== undefined && !canEditGeneral) {
+    if ((solution !== undefined && solution !== null && solution.trim() !== '') && !isTechnician) {
+      return NextResponse.json(
+        { success: false, error: "Apenas técnicos podem adicionar solução" },
+        { status: 403 }
+      )
+    }
+
+    // Observações podem ser editadas por todos os perfis autorizados
+    if ((observations !== undefined && observations !== null && observations.trim() !== '') && !canEditGeneral) {
       return NextResponse.json(
         { success: false, error: "Você não tem permissão para editar observações desta OS" },
         { status: 403 }
