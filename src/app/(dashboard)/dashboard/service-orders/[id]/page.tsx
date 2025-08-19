@@ -101,6 +101,7 @@ interface ServiceOrderDetails {
     email: string
   }
   attachments: Attachment[]
+  quotes: Quote[]
   auditLogs: Array<{
     id: string
     action: string
