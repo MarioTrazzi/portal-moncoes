@@ -264,7 +264,7 @@ async function main() {
         number: `OS${String(osNumber++).padStart(6, '0')}`,
         title: 'Switch de rede queimado no Departamento de TI',
         description: 'Switch principal de 24 portas queimou durante temporal. Sem conectividade de rede em todo o departamento.',
-        status: 'AGUARDANDO_ORCAMENTO',
+        status: 'ORCAMENTOS_RECEBIDOS',
         priority: 'URGENTE',
         category: 'REDE',
         createdById: tecnico1.id,

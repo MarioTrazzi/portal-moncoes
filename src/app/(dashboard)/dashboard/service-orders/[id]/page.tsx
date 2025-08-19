@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { ArrowLeft, Clock, User, MapPin, FileText, Save, Loader2 } from "lucide-react"
+import { ArrowLeft, Clock, User, MapPin, FileText, Save, Loader2, Plus, DollarSign } from "lucide-react"
 import { ServiceOrderStatus, AttachmentType, UserRole } from "@prisma/client"
 import { statusLabels, categoryLabels } from "@/types"
 import { useToast } from "@/hooks/use-toast"
@@ -27,6 +27,30 @@ interface Attachment {
   type: AttachmentType
   description?: string
   uploadedAt: string
+}
+
+interface Quote {
+  id: string
+  totalValue: number
+  deliveryTime?: number
+  validity?: string
+  observations?: string
+  status: string
+  createdAt: string
+  supplier: {
+    id: string
+    name: string
+    cnpj: string
+    contact: string
+    phone: string
+    email: string
+  }
+  items: Array<{
+    description: string
+    quantity: number
+    unitPrice: number
+    totalPrice: number
+  }>
 }
 
 interface CurrentUser {
@@ -51,8 +75,9 @@ interface ServiceOrderDetails {
   solution?: string
   observations?: string
   materialDescription?: string
-  materialJustification?: string
-  estimatedHours?: number
+  attachments: Attachment[]
+  quotes: Quote[]
+  auditLogs: Array<{umber
   actualHours?: number
   createdAt: string
   updatedAt: string
@@ -951,9 +976,123 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
                 ))
               )}
             </div>
-          </CardContent>
         </Card>
       </div>
+
+      {/* Seção de Orçamentos */}
+      {(serviceOrder.status === ServiceOrderStatus.AGUARDANDO_ORCAMENTO || 
+        serviceOrder.status === ServiceOrderStatus.ORCAMENTOS_RECEBIDOS ||
+        serviceOrder.quotes.length > 0) && (
+        <Card className="mt-6">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <DollarSign className="h-5 w-5" />
+                  Orçamentos
+                </CardTitle>
+                <CardDescription>
+                  Orçamentos recebidos para esta OS
+                </CardDescription>
+              </div>
+              {currentUser && (currentUser.role === 'GESTOR' || currentUser.role === 'ADMIN') && (
+                <Button asChild size="sm">
+                  <Link href={`/dashboard/service-orders/${serviceOrder.id}/add-quote`}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Adicionar Orçamento
+                  </Link>
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {serviceOrder.quotes.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">Nenhum orçamento cadastrado</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Os orçamentos podem ser cadastrados manualmente ou recebidos por email
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {serviceOrder.quotes.map((quote) => (
+                  <div key={quote.id} className="border rounded-lg p-4">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <h4 className="font-medium">{quote.supplier.name}</h4>
+                        <p className="text-sm text-muted-foreground">
+                          CNPJ: {quote.supplier.cnpj} | Contato: {quote.supplier.contact}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-green-600">
+                          R$ {quote.totalValue.toFixed(2)}
+                        </div>
+                        <Badge variant="outline">{quote.status}</Badge>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4 mb-3">
+                      {quote.deliveryTime && (
+                        <div>
+                          <span className="text-sm font-medium">Prazo:</span>
+                          <span className="text-sm text-muted-foreground ml-2">
+                            {quote.deliveryTime} dias
+                          </span>
+                        </div>
+                      )}
+                      {quote.validity && (
+                        <div>
+                          <span className="text-sm font-medium">Validade:</span>
+                          <span className="text-sm text-muted-foreground ml-2">
+                            {formatDate(quote.validity)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {quote.items && quote.items.length > 0 && (
+                      <div className="mt-3">
+                        <h5 className="text-sm font-medium mb-2">Itens:</h5>
+                        <div className="space-y-1">
+                          {quote.items.map((item, index) => (
+                            <div key={index} className="text-sm flex justify-between">
+                              <span>{item.description} (Qtd: {item.quantity})</span>
+                              <span>R$ {item.totalPrice.toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {quote.observations && (
+                      <div className="mt-3">
+                        <span className="text-sm font-medium">Observações:</span>
+                        <p className="text-sm text-muted-foreground mt-1">{quote.observations}</p>
+                      </div>
+                    )}
+
+                    <div className="mt-3 text-xs text-muted-foreground">
+                      Cadastrado em {formatDate(quote.createdAt)}
+                    </div>
+                  </div>
+                ))}
+                
+                {serviceOrder.quotes.length > 1 && (
+                  <div className="mt-4 p-3 bg-muted rounded-lg">
+                    <div className="text-sm font-medium">Análise de Orçamentos:</div>
+                    <div className="text-sm text-muted-foreground mt-1">
+                      Menor valor: R$ {Math.min(...serviceOrder.quotes.map(q => q.totalValue)).toFixed(2)}
+                      {" | "}
+                      Maior valor: R$ {Math.max(...serviceOrder.quotes.map(q => q.totalValue)).toFixed(2)}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Gerenciador de Anexos - Span completo */}
       <div className="mt-6">
@@ -966,4 +1105,5 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
       </div>
     </div>
   )
+} )
 }
