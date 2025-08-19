@@ -75,9 +75,8 @@ interface ServiceOrderDetails {
   solution?: string
   observations?: string
   materialDescription?: string
-  attachments: Attachment[]
-  quotes: Quote[]
-  auditLogs: Array<{umber
+  materialJustification?: string
+  estimatedHours?: number
   actualHours?: number
   createdAt: string
   updatedAt: string
@@ -977,6 +976,7 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
                 ))
               )}
             </div>
+          </CardContent>
         </Card>
       </div>
 
@@ -1106,5 +1106,4 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
       </div>
     </div>
   )
-} )
 }
