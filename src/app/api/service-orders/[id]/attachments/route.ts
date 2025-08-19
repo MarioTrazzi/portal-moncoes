@@ -4,6 +4,7 @@ import { AttachmentType } from '@prisma/client'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
+import { verifyAuth } from '@/lib/auth'
 
 // POST - Adicionar anexos a uma OS
 export async function POST(
@@ -11,6 +12,15 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Verificar autenticação
+    const authResult = await verifyAuth(request)
+    if (authResult.error) {
+      return NextResponse.json(
+        { success: false, error: authResult.error },
+        { status: authResult.status }
+      )
+    }
+
     const { id: serviceOrderId } = await params
     const formData = await request.formData()
 
@@ -22,18 +32,6 @@ export async function POST(
     if (!serviceOrder) {
       return NextResponse.json(
         { error: 'OS não encontrada' },
-        { status: 404 }
-      )
-    }
-
-    // Por enquanto, usar um usuário padrão (depois implementaremos autenticação)
-    const defaultUser = await prisma.user.findUnique({
-      where: { email: 'funcionario@prefeitura.gov.br' }
-    })
-
-    if (!defaultUser) {
-      return NextResponse.json(
-        { error: 'Usuário não encontrado' },
         { status: 404 }
       )
     }

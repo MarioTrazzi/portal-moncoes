@@ -108,6 +108,7 @@ function generatePDFHTML(data: any): string {
 
     <div class="section">
         <h3>Orçamentos Recebidos</h3>
+        ${data.quotes.length > 0 ? `
         <table class="quotes-table">
             <thead>
                 <tr>
@@ -130,9 +131,22 @@ function generatePDFHTML(data: any): string {
                 `).join('')}
             </tbody>
         </table>
-        ${data.quotes.length > 0 ? `
         <p><strong>Menor orçamento: ${formatCurrency(Math.min(...data.quotes.map((q: any) => q.totalValue)))}</strong></p>
-        ` : '<p>Nenhum orçamento disponível</p>'}
+        ` : ''}
+        
+        ${data.attachments.length > 0 ? `
+        <div>
+            <h4>Documentos de Orçamento Anexados:</h4>
+            <ul>
+                ${data.attachments.map((att: any) => `
+                <li>${att.originalName} (${(att.size / 1024).toFixed(1)} KB)</li>
+                `).join('')}
+            </ul>
+            <p><em>Os orçamentos foram recebidos por email e anexados ao sistema.</em></p>
+        </div>
+        ` : ''}
+        
+        ${data.quotes.length === 0 && data.attachments.length === 0 ? '<p>Nenhum orçamento disponível</p>' : ''}
     </div>
 
     <div class="section">
@@ -227,6 +241,14 @@ export async function POST(
           orderBy: {
             totalValue: 'asc'
           }
+        },
+        attachments: {
+          select: {
+            id: true,
+            originalName: true,
+            type: true,
+            size: true
+          }
         }
       }
     })
@@ -246,10 +268,23 @@ export async function POST(
       )
     }
 
-    // Verificar se existem orçamentos
-    if (serviceOrder.quotes.length === 0) {
+    // Para demonstração, permitir geração de PDF mesmo sem orçamentos formais
+    // Em produção, isso seria baseado em orçamentos reais recebidos por email/sistema
+    const hasQuotes = serviceOrder.quotes.length > 0
+    const hasAttachments = serviceOrder.attachments.some(att => 
+      att.type === 'DOCUMENT' && 
+      (att.originalName.toLowerCase().includes('orçamento') || 
+       att.originalName.toLowerCase().includes('orcamento') ||
+       att.originalName.toLowerCase().includes('proposta'))
+    )
+
+    // Se não tem orçamentos formais, verificar se tem anexos de orçamento
+    if (!hasQuotes && !hasAttachments) {
       return NextResponse.json(
-        { success: false, error: 'Nenhum orçamento encontrado para esta OS' },
+        { 
+          success: false, 
+          error: 'Não há orçamentos disponíveis. Aguarde o recebimento dos orçamentos dos fornecedores ou anexe os orçamentos recebidos por email.' 
+        },
         { status: 400 }
       )
     }
@@ -291,6 +326,13 @@ export async function POST(
         validity: quote.validity,
         observations: quote.observations,
       })),
+      attachments: serviceOrder.attachments
+        .filter((att: any) => att.type === 'DOCUMENT')
+        .map((att: any) => ({
+          id: att.id,
+          originalName: att.originalName,
+          size: att.size
+        })),
       generatedAt: new Date(),
       generatedBy: user.name,
     }
