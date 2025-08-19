@@ -10,6 +10,18 @@ Sistema de gerenciamento de ordens de serviço (OS) de TI desenvolvido para a pr
 - **Sistema de Permissões**: Roles hierárquicos (Funcionário, Técnico, Gestor, Admin)
 - **Histórico e Auditoria**: Log completo de todas as ações realizadas
 
+### ✅ Sistema de Orçamentos
+- **Cadastro de Orçamentos**: Interface para gestores cadastrarem orçamentos recebidos
+- **Comparativo de Preços**: Análise automática de menor/maior valor
+- **Geração de PDF**: Documentos para assinatura do prefeito com todos os orçamentos
+- **Fluxo de Aprovação**: Do recebimento à assinatura do documento
+
+### ✅ Sistema de Anexos
+- **Upload de Arquivos**: Suporte a imagens, documentos e vídeos
+- **Download Seguro**: Sistema de download autenticado
+- **Orçamentos por Email**: Anexação de orçamentos recebidos por email
+- **PDF Gerado**: Downloads de documentos gerados pelo sistema
+
 ### ✅ Sistema de Notificações
 - **Notificações em Tempo Real**: Alertas automáticos sobre mudanças de status
 - **Central de Notificações**: Interface unificada com controle de leitura
@@ -41,10 +53,28 @@ Sistema de gerenciamento de ordens de serviço (OS) de TI desenvolvido para a pr
 
 1. **Abertura**: Funcionário abre OS com descrição do problema
 2. **Análise**: Técnico recebe e analisa a OS
-3. **Execução**: Técnico executa o serviço (com possível deslocamento)
-4. **Materiais**: Se necessário, sistema solicita orçamentos automaticamente
-5. **Aprovação**: Orçamentos vão para aprovação da gestão
-6. **Finalização**: Após aprovação, material é adquirido e OS é finalizada
+3. **Materiais**: Se necessário, técnico identifica necessidade de materiais
+4. **Orçamentos**: Gestor solicita e recebe orçamentos de fornecedores
+5. **Aprovação**: Aprovador gera PDF e envia para assinatura do prefeito
+6. **Assinatura**: Prefeito assina documento e aprova compra
+7. **Execução**: Técnico executa o serviço (com possível deslocamento)
+8. **Finalização**: OS é finalizada com solução aplicada
+
+## 🏛️ Workflow Governamental Específico
+
+### **Processo de Orçamento Completo:**
+```
+Técnico identifica material → Gestor solicita orçamento → 
+Fornecedores respondem → Gestor cadastra orçamentos → 
+Aprovador gera PDF → Prefeito assina → Material aprovado
+```
+
+### **Roles e Responsabilidades:**
+- **Funcionário**: Abre OS, acompanha status
+- **Técnico**: Analisa, diagnostica, executa e finaliza OS
+- **Aprovador**: Gera documentos para aprovação de orçamentos
+- **Gestor**: Solicita orçamentos, cadastra propostas recebidas
+- **Admin/Prefeito**: Assina documentos e aprova compras
 
 ## 🚀 Como Executar Localmente
 
