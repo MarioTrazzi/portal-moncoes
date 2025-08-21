@@ -187,6 +187,10 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Obter dados do request (orçamento selecionado)
+    const body = await request.json().catch(() => ({}))
+    const { selectedQuoteId } = body
+
     // Verificar autenticação
     const { user } = await verifyAuth(request)
     if (!user) {
@@ -196,10 +200,10 @@ export async function POST(
       )
     }
 
-    // Verificar se é aprovador
-    if (user.role !== UserRole.APROVADOR && user.role !== UserRole.ADMIN) {
+    // Verificar se é gestor, aprovador ou admin
+    if (user.role !== UserRole.GESTOR && user.role !== UserRole.APROVADOR && user.role !== UserRole.ADMIN) {
       return NextResponse.json(
-        { success: false, error: 'Apenas aprovadores podem gerar PDFs' },
+        { success: false, error: 'Apenas gestores e aprovadores podem gerar PDFs' },
         { status: 403 }
       )
     }
@@ -311,21 +315,23 @@ export async function POST(
         name: serviceOrder.assignedTo?.name,
         email: serviceOrder.assignedTo?.email,
       },
-      quotes: serviceOrder.quotes.map(quote => ({
-        id: quote.id,
-        supplier: {
-          name: quote.supplier.name,
-          cnpj: quote.supplier.cnpj,
-          contact: quote.supplier.contact,
-          phone: quote.supplier.phone,
-          email: quote.supplier.email,
-        },
-        items: quote.items,
-        totalValue: quote.totalValue,
-        deliveryTime: quote.deliveryTime,
-        validity: quote.validity,
-        observations: quote.observations,
-      })),
+      quotes: serviceOrder.quotes
+        .filter(quote => selectedQuoteId ? quote.id === selectedQuoteId : true)
+        .map(quote => ({
+          id: quote.id,
+          supplier: {
+            name: quote.supplier.name,
+            cnpj: quote.supplier.cnpj,
+            contact: quote.supplier.contact,
+            phone: quote.supplier.phone,
+            email: quote.supplier.email,
+          },
+          items: quote.items,
+          totalValue: quote.totalValue,
+          deliveryTime: quote.deliveryTime,
+          validity: quote.validity,
+          observations: quote.observations,
+        })),
       attachments: serviceOrder.attachments
         .filter((att: any) => att.type === 'DOCUMENT')
         .map((att: any) => ({

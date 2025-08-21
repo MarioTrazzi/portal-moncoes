@@ -124,6 +124,9 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
   const [diagnosis, setDiagnosis] = useState("")
   const [solution, setSolution] = useState("")
   const [observations, setObservations] = useState("")
+  const [showQuoteSelectionModal, setShowQuoteSelectionModal] = useState(false)
+  const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null)
+  const [generatingPDF, setGeneratingPDF] = useState(false)
   
   const router = useRouter()
   const { toast } = useToast()
@@ -192,13 +195,13 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
         break
 
       case ServiceOrderStatus.ORCAMENTOS_RECEBIDOS:
-        if (userRole === UserRole.APROVADOR || userRole === UserRole.ADMIN) {
-          // Aprovador pode gerar PDF e enviar para assinatura
+        if (userRole === UserRole.GESTOR || userRole === UserRole.APROVADOR || userRole === UserRole.ADMIN) {
+          // Gestor pode selecionar orçamento e gerar PDF para assinatura
           actions.push({
-            action: 'generate_pdf',
-            label: 'Gerar PDF para Assinatura',
+            action: 'select_quote_and_generate_pdf',
+            label: 'Selecionar Orçamento e Gerar PDF',
             nextStatus: ServiceOrderStatus.AGUARDANDO_ASSINATURA,
-            description: 'Gera PDF do orçamento e envia para assinatura do prefeito'
+            description: 'Seleciona o melhor orçamento e gera PDF para assinatura do prefeito'
           })
         }
         break
@@ -435,6 +438,12 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
         throw new Error("Token de autenticação não encontrado")
       }
 
+      // Verificar se é ação especial de seleção de orçamento
+      if (action.action === 'select_quote_and_generate_pdf') {
+        setShowQuoteSelectionModal(true)
+        return
+      }
+
       // Verificar se é ação especial de geração de PDF
       if (action.action === 'generate_pdf') {
         const response = await fetch(`/api/service-orders/${resolvedParams.id}/generate-pdf`, {
@@ -613,6 +622,90 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
       })
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleGeneratePDFWithQuote = async () => {
+    if (!selectedQuoteId || !serviceOrder) {
+      toast({
+        title: "Erro",
+        description: "Selecione um orçamento primeiro",
+        variant: "destructive"
+      })
+      return
+    }
+
+    try {
+      setGeneratingPDF(true)
+
+      // Pegar token do cookie
+      const getCookie = (name: string) => {
+        const value = `; ${document.cookie}`
+        const parts = value.split(`; ${name}=`)
+        if (parts.length === 2) return parts.pop()?.split(';').shift()
+        return undefined
+      }
+      
+      const token = getCookie('auth-token')
+      if (!token) {
+        throw new Error("Token de autenticação não encontrado")
+      }
+
+      // Gerar PDF com orçamento selecionado
+      const response = await fetch(`/api/service-orders/${resolvedParams.id}/generate-pdf`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ 
+          selectedQuoteId: selectedQuoteId
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || "Erro ao gerar PDF")
+      }
+
+      const result = await response.json()
+      
+      // Atualizar status da OS para AGUARDANDO_ASSINATURA
+      const updateResponse = await fetch(`/api/service-orders/${resolvedParams.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ 
+          status: ServiceOrderStatus.AGUARDANDO_ASSINATURA,
+          selectedQuoteId: selectedQuoteId
+        }),
+      })
+
+      if (!updateResponse.ok) {
+        const error = await updateResponse.json()
+        throw new Error(error.error || "Erro ao atualizar status")
+      }
+
+      toast({
+        title: "Sucesso",
+        description: "PDF gerado com sucesso! OS enviada para assinatura do prefeito."
+      })
+
+      setShowQuoteSelectionModal(false)
+      setSelectedQuoteId(null)
+      await fetchServiceOrder()
+
+    } catch (error) {
+      console.error("Erro ao gerar PDF:", error)
+      toast({
+        title: "Erro",
+        description: error instanceof Error ? error.message : "Erro ao gerar PDF",
+        variant: "destructive"
+      })
+    } finally {
+      setGeneratingPDF(false)
     }
   }
 
@@ -1104,6 +1197,108 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
           canUpload={true}
         />
       </div>
+
+      {/* Modal de Seleção de Orçamento */}
+      {showQuoteSelectionModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <h2 className="text-xl font-bold mb-4">Selecionar Orçamento para Aprovação</h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              Escolha o orçamento que será enviado para assinatura do prefeito:
+            </p>
+            
+            <div className="space-y-4">
+              {serviceOrder.quotes.map((quote) => (
+                <div 
+                  key={quote.id} 
+                  className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+                    selectedQuoteId === quote.id 
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                  onClick={() => setSelectedQuoteId(quote.id)}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center space-x-3">
+                      <input
+                        type="radio"
+                        name="selectedQuote"
+                        checked={selectedQuoteId === quote.id}
+                        onChange={() => setSelectedQuoteId(quote.id)}
+                        className="text-blue-600"
+                      />
+                      <div>
+                        <h4 className="font-medium">{quote.supplier.name}</h4>
+                        <p className="text-sm text-muted-foreground">{quote.supplier.cnpj}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-green-600">
+                        R$ {quote.totalValue.toFixed(2)}
+                      </div>
+                      {quote.deliveryTime && (
+                        <div className="text-sm text-muted-foreground">
+                          {quote.deliveryTime} dias
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {quote.items && quote.items.length > 0 && (
+                    <div className="mt-2">
+                      <div className="text-sm font-medium mb-1">Itens:</div>
+                      <div className="space-y-1">
+                        {quote.items.slice(0, 2).map((item, index) => (
+                          <div key={index} className="text-sm text-muted-foreground">
+                            {item.description} - Qtd: {item.quantity} - R$ {item.totalPrice.toFixed(2)}
+                          </div>
+                        ))}
+                        {quote.items.length > 2 && (
+                          <div className="text-sm text-muted-foreground">
+                            +{quote.items.length - 2} itens...
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {quote.observations && (
+                    <div className="mt-2">
+                      <div className="text-sm font-medium">Observações:</div>
+                      <p className="text-sm text-muted-foreground">{quote.observations}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            
+            <div className="flex justify-end space-x-3 mt-6">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowQuoteSelectionModal(false)
+                  setSelectedQuoteId(null)
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                onClick={handleGeneratePDFWithQuote}
+                disabled={!selectedQuoteId || generatingPDF}
+              >
+                {generatingPDF ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Gerando PDF...
+                  </>
+                ) : (
+                  'Gerar PDF para Assinatura'
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
