@@ -151,14 +151,12 @@ function generatePDFHTML(data: any): string {
   `
 }
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    console.log('=== NOVA API GENERATE PDF ===')
-    
-    // Obter dados do request
-    const body = await req.json().catch(() => ({}))
-    const { selectedQuoteId } = body
-    console.log('Orçamento selecionado:', selectedQuoteId)
+    // Obter parâmetros da query
+    const url = new URL(req.url)
+    const selectedQuoteId = url.searchParams.get('quoteId')
+    const attachmentId = url.searchParams.get('attachmentId')
 
     // Verificar autenticação
     const authResult = await verifyAuth(req)
@@ -170,18 +168,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
 
     const user = authResult.user
-    console.log('Usuário autenticado:', user.email, user.role)
-
-    // Verificar permissões
-    if (user.role !== UserRole.GESTOR && user.role !== UserRole.APROVADOR && user.role !== UserRole.ADMIN) {
-      return NextResponse.json(
-        { success: false, error: 'Apenas gestores e aprovadores podem gerar PDFs' },
-        { status: 403 }
-      )
-    }
 
     // Buscar OS
-    console.log('Buscando OS...')
     const serviceOrder = await prisma.serviceOrder.findUnique({
       where: { id: params.id },
       include: {
@@ -209,7 +197,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
               }
             }
           }
-        }
+        },
+        attachments: true
       }
     })
 
@@ -220,15 +209,28 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       )
     }
 
-    console.log('OS encontrada:', serviceOrder.number)
-    console.log('Total de orçamentos:', serviceOrder.quotes.length)
+    // Se um attachment ID foi fornecido, buscar as configurações específicas
+    let filteredQuotes = serviceOrder.quotes
+    let generatedBy = user.name
+    let generatedAt = new Date()
 
-    // Filtrar orçamento se especificado
-    const filteredQuotes = selectedQuoteId 
-      ? serviceOrder.quotes.filter(q => q.id === selectedQuoteId)
-      : serviceOrder.quotes
-
-    console.log('Orçamentos filtrados:', filteredQuotes.length)
+    if (attachmentId) {
+      const attachment = serviceOrder.attachments.find(a => a.id === attachmentId)
+      if (attachment) {
+        // Tentar extrair o quote ID da descrição
+        const quoteIdMatch = attachment.description?.match(/Quote ID: ([\w-]+)/)
+        if (quoteIdMatch) {
+          const extractedQuoteId = quoteIdMatch[1]
+          filteredQuotes = serviceOrder.quotes.filter(q => q.id === extractedQuoteId)
+        }
+        generatedAt = attachment.uploadedAt
+        // Tentar determinar quem gerou (simplificado)
+        generatedBy = 'Sistema'
+      }
+    } else if (selectedQuoteId) {
+      // Filtrar orçamento se especificado
+      filteredQuotes = serviceOrder.quotes.filter(q => q.id === selectedQuoteId)
+    }
 
     // Preparar dados para o PDF
     const pdfData = {
@@ -261,60 +263,23 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         validity: quote.validity,
         observations: quote.observations,
       })),
-      generatedAt: new Date(),
-      generatedBy: user.name,
+      generatedAt: generatedAt,
+      generatedBy: generatedBy,
     }
 
     // Gerar conteúdo HTML
     const htmlContent = generatePDFHTML(pdfData)
 
-    // Gerar nome único do arquivo
-    const timestamp = Date.now()
-    const fileName = `orcamento-os-${serviceOrder.number}-${timestamp}.html`
-    const relativePath = `generated-pdfs/${fileName}`
-
-    // Não salvar arquivo fisicamente no Vercel - apenas criar o registro
-    console.log('PDF será servido dinamicamente via /view-pdf')
-
-    // Salvar como anexo na OS
-    const attachment = await prisma.attachment.create({
-      data: {
-        serviceOrderId: serviceOrder.id,
-        filename: fileName,
-        originalName: `Orçamento OS ${serviceOrder.number}.html`,
-        mimeType: 'text/html',
-        size: Buffer.byteLength(htmlContent, 'utf8'),
-        path: relativePath,
-        type: 'DOCUMENT',
-        description: selectedQuoteId 
-          ? `PDF de orçamento selecionado para aprovação do prefeito (Quote ID: ${selectedQuoteId})`
-          : 'PDF com todos os orçamentos para aprovação do prefeito',
-      }
-    })
-
-    // Log de auditoria
-    await prisma.auditLog.create({
-      data: {
-        serviceOrderId: params.id,
-        userId: user.id,
-        action: 'PDF_GERADO',
-        details: `PDF de orçamento gerado: ${fileName}`,
-      }
-    })
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        attachment,
-        message: 'PDF gerado com sucesso e salvo como anexo.',
-        fileName: fileName,
-        selectedQuoteId: selectedQuoteId,
-        quotesIncluded: filteredQuotes.length
+    // Retornar como HTML
+    return new NextResponse(htmlContent, {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-cache'
       }
     })
 
   } catch (error) {
-    console.error('Erro na nova API:', error)
+    console.error('Erro ao visualizar PDF:', error)
     return NextResponse.json({
       success: false,
       error: 'Erro interno do servidor',

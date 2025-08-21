@@ -158,8 +158,14 @@ export function AttachmentManager({
   }
 
   const handleDownload = (attachment: Attachment) => {
-    // Abrir arquivo em nova aba
-    window.open(`/api/uploads/${attachment.path.replace('/uploads/', '')}`, '_blank')
+    // Verificar se é um PDF HTML gerado automaticamente
+    if (attachment.mimeType === 'text/html' && attachment.path.includes('generated-pdfs')) {
+      // Abrir via rota de visualização específica
+      window.open(`/api/service-orders/${serviceOrderId}/view-pdf?attachmentId=${attachment.id}`, '_blank')
+    } else {
+      // Abrir arquivo normal via uploads
+      window.open(`/api/uploads/${attachment.path.replace('/uploads/', '')}`, '_blank')
+    }
   }
 
   const handleDelete = async (attachmentId: string) => {
