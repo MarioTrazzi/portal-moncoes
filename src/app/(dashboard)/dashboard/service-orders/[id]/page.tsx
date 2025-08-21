@@ -1188,15 +1188,31 @@ export default function ServiceOrderDetailsPage({ params }: { params: Promise<{ 
         </Card>
       )}
 
-      {/* Gerenciador de Anexos - Span completo */}
-      <div className="mt-6">
-        <AttachmentManager
-          serviceOrderId={serviceOrder.id}
-          attachments={serviceOrder.attachments}
-          onAttachmentsChange={fetchServiceOrder}
-          canUpload={true}
-        />
-      </div>
+      {/* Seção de Anexos */}
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Anexos
+          </CardTitle>
+          <CardDescription>
+            Documentos e arquivos relacionados à OS (incluindo PDFs gerados)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AttachmentManager
+            serviceOrderId={serviceOrder.id}
+            attachments={serviceOrder.attachments}
+            onAttachmentsChange={fetchServiceOrder}
+            canUpload={!!(currentUser && (
+              currentUser.role === UserRole.GESTOR || 
+              currentUser.role === UserRole.APROVADOR || 
+              currentUser.role === UserRole.ADMIN ||
+              currentUser.role === UserRole.TECNICO
+            ))}
+          />
+        </CardContent>
+      </Card>
 
       {/* Modal de Seleção de Orçamento */}
       {showQuoteSelectionModal && (
