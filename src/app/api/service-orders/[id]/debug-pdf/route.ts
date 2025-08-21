@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { verifyAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -6,68 +7,31 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     console.log('=== DEBUG GENERATE PDF ===')
     console.log('ID da OS:', params.id)
     
-    // Testar busca da OS completa como na API original
-    const serviceOrder = await prisma.serviceOrder.findUnique({
-      where: { id: params.id },
-      include: {
-        createdBy: {
-          select: {
-            name: true,
-            email: true,
-            department: {
-              select: {
-                name: true,
-                location: true
-              }
-            }
-          }
-        },
-        assignedTo: {
-          select: {
-            name: true,
-            email: true
-          }
-        },
-        quotes: {
-          include: {
-            supplier: {
-              select: {
-                name: true,
-                cnpj: true,
-                email: true,
-                phone: true,
-                contact: true
-              }
-            }
-          },
-          orderBy: {
-            totalValue: 'asc'
-          }
-        },
-        attachments: {
-          select: {
-            id: true,
-            originalName: true,
-            type: true,
-            size: true
-          }
-        }
-      }
-    })
+    // Testar autenticação
+    console.log('Testando verifyAuth...')
+    const authResult = await verifyAuth(req)
+    console.log('Resultado da auth:', authResult)
     
-    console.log('OS encontrada:', serviceOrder ? 'Sim' : 'Não')
-    if (serviceOrder) {
-      console.log('Quotes encontrados:', serviceOrder.quotes.length)
+    if (authResult.error || !authResult.user) {
+      return NextResponse.json({
+        success: false,
+        debug: {
+          step: 'auth',
+          error: authResult.error,
+          hasUser: !!authResult.user
+        }
+      })
     }
+    
+    console.log('Usuário autenticado:', authResult.user.email, authResult.user.role)
     
     return NextResponse.json({
       success: true,
       debug: {
         osId: params.id,
-        found: !!serviceOrder,
-        quotesCount: serviceOrder?.quotes.length || 0,
-        status: serviceOrder?.status,
-        message: 'Query completa funcionando'
+        user: authResult.user.email,
+        role: authResult.user.role,
+        message: 'Autenticação funcionando'
       }
     })
     
