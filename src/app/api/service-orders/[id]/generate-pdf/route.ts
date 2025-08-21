@@ -202,6 +202,10 @@ export async function POST(
 
     const user = authResult.user
 
+    console.log('Iniciando geração de PDF para OS:', params.id)
+    console.log('Usuário autenticado:', user.email, user.role)
+    console.log('Orçamento selecionado:', selectedQuoteId)
+
     // Verificar se é gestor, aprovador ou admin
     if (user.role !== UserRole.GESTOR && user.role !== UserRole.APROVADOR && user.role !== UserRole.ADMIN) {
       return NextResponse.json(
@@ -211,7 +215,10 @@ export async function POST(
     }
 
     // Buscar a OS com orçamentos
-    const serviceOrder = await prisma.serviceOrder.findUnique({
+    let serviceOrder
+    try {
+      console.log('Buscando OS no banco de dados...')
+      serviceOrder = await prisma.serviceOrder.findUnique({
       where: { id: params.id },
       include: {
         createdBy: {
@@ -258,6 +265,14 @@ export async function POST(
         }
       }
     })
+    console.log('OS encontrada:', serviceOrder ? 'Sim' : 'Não')
+    } catch (error) {
+      console.error('Erro ao buscar OS:', error)
+      return NextResponse.json(
+        { success: false, error: 'Erro ao buscar OS no banco de dados' },
+        { status: 500 }
+      )
+    }
 
     if (!serviceOrder) {
       return NextResponse.json(
