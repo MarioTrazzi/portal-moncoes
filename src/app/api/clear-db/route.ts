@@ -14,13 +14,25 @@ export async function POST(req: NextRequest) {
     await prisma.purchaseOrder.deleteMany()
     await prisma.serviceOrder.deleteMany()
     await prisma.supplier.deleteMany()
+    await prisma.notification.deleteMany()
     await prisma.user.deleteMany()
     await prisma.department.deleteMany()
     
+    // Verificar se tudo foi limpo
+    const counts = {
+      departments: await prisma.department.count(),
+      users: await prisma.user.count(),
+      serviceOrders: await prisma.serviceOrder.count(),
+      suppliers: await prisma.supplier.count(),
+      quotes: await prisma.quote.count()
+    }
+    
     console.log('Banco limpo com sucesso!')
+    console.log('Contagens após limpeza:', counts)
     
     return NextResponse.json({ 
       message: 'Banco de dados limpo com sucesso!',
+      counts,
       timestamp: new Date().toISOString()
     })
   } catch (error) {
