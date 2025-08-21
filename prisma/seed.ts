@@ -514,3 +514,6 @@ main()
   .finally(async () => {
     await prisma.$disconnect()
   })
+
+// Export para uso em outros módulos
+export default main
