@@ -6,6 +6,9 @@ const prisma = new PrismaClient()
 
 export async function POST(req: NextRequest) {
   try {
+    // Verificar se o parâmetro force foi enviado
+    const { force } = await req.json().catch(() => ({}))
+    
     // Verificar se as tabelas existem tentando uma consulta simples
     console.log('Verificando conexão com banco...')
     
@@ -21,13 +24,13 @@ export async function POST(req: NextRequest) {
       }, { status: 500 })
     }
 
-    // Verificar se já existem usuários
+    // Verificar se já existem usuários (só se não for force)
     let existingUsers = 0
     try {
       existingUsers = await prisma.user.count()
-      if (existingUsers > 0) {
+      if (existingUsers > 0 && !force) {
         return NextResponse.json({ 
-          message: 'Banco já possui dados, seed não executado',
+          message: 'Banco já possui dados, seed não executado. Use force=true para reexecutar',
           usersCount: existingUsers 
         })
       }
@@ -38,6 +41,20 @@ export async function POST(req: NextRequest) {
         details: 'Execute `prisma db push` primeiro ou configure as migrações',
         suggestion: 'As tabelas do banco ainda não foram criadas. Configure as variáveis de ambiente na Vercel e execute prisma db push'
       }, { status: 400 })
+    }
+
+    // Se force=true, limpar dados existentes
+    if (force && existingUsers > 0) {
+      console.log('Limpando dados existentes...')
+      await prisma.auditLog.deleteMany()
+      await prisma.attachment.deleteMany()
+      await prisma.quote.deleteMany()
+      await prisma.purchaseOrder.deleteMany()
+      await prisma.serviceOrder.deleteMany()
+      await prisma.supplier.deleteMany()
+      await prisma.user.deleteMany()
+      await prisma.department.deleteMany()
+      console.log('Dados limpos com sucesso')
     }
 
     // Criar departamento padrão
