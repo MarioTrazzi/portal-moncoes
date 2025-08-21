@@ -44,8 +44,23 @@ export function NextActions({ className }: NextActionsProps) {
     try {
       setIsLoading(true)
       
-      // Simular dados para demonstração
-      // Em uma implementação real, estes dados viriam de uma API
+      // Buscar ações reais da API
+      const response = await fetch('/api/dashboard/next-actions', {
+        headers: {
+          'x-user-email': 'gestor@prefeitura.gov.br' // Temporário para teste
+        }
+      })
+      
+      if (!response.ok) {
+        throw new Error('Erro ao buscar ações')
+      }
+      
+      const data = await response.json()
+      setActions(data.actions || [])
+    } catch (error) {
+      console.error('Erro ao buscar próximas ações:', error)
+      
+      // Fallback para dados simulados se a API falhar
       const mockActions: ActionItem[] = [
         {
           id: '1',
@@ -74,19 +89,19 @@ export function NextActions({ className }: NextActionsProps) {
         {
           id: '3',
           type: 'approval',
-          title: 'Aguardando Aprovação',
-          description: 'Orçamentos e materiais esperando aprovação',
-          count: 3,
+          title: 'Orçamentos para Aprovação',
+          description: 'OS com orçamentos recebidos esperando aprovação da gestão',
+          count: 1,
           priority: 'medium',
           action: {
-            label: 'Revisar Aprovações',
-            href: '/dashboard/service-orders?status=AGUARDANDO_APROVACAO'
+            label: 'Revisar Orçamentos',
+            href: '/dashboard/service-orders?status=ORCAMENTOS_RECEBIDOS'
           }
         },
         {
           id: '4',
           type: 'assignment',
-          title: 'Sem Técnico',
+          title: 'OS sem Técnico',
           description: 'OS abertas que ainda não foram atribuídas a um técnico',
           count: 4,
           priority: 'medium',
@@ -98,8 +113,6 @@ export function NextActions({ className }: NextActionsProps) {
       ]
       
       setActions(mockActions)
-    } catch (error) {
-      console.error('Erro ao buscar próximas ações:', error)
     } finally {
       setIsLoading(false)
     }
