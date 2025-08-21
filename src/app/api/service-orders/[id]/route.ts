@@ -146,7 +146,7 @@ export async function PUT(
           canChangeStatus = (isApprover || isAdmin) && status === 'AGUARDANDO_ASSINATURA'
           break
         case 'ORCAMENTOS_RECEBIDOS':
-          canChangeStatus = (isApprover || isAdmin) && status === 'AGUARDANDO_ASSINATURA'
+          canChangeStatus = (isManager || isApprover || isAdmin) && status === 'AGUARDANDO_ASSINATURA'
           break
         case 'AGUARDANDO_ASSINATURA':
           canChangeStatus = isAdmin && status === 'MATERIAL_APROVADO'
