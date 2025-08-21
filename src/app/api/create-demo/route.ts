@@ -13,11 +13,8 @@ export async function POST(req: NextRequest) {
         email: 'contato@techsup.com.br',
         phone: '(11) 3333-1111',
         address: 'Rua da Tecnologia, 123',
-        city: 'São Paulo',
-        state: 'SP',
-        zipCode: '01234-567',
         contact: 'João Silva',
-        specialties: ['HARDWARE', 'REDE']
+        categories: JSON.stringify(['HARDWARE', 'REDE'])
       }
     })
 
@@ -28,11 +25,8 @@ export async function POST(req: NextRequest) {
         email: 'vendas@infomax.com.br',
         phone: '(11) 4444-2222',
         address: 'Av. Digital, 456',
-        city: 'São Paulo',
-        state: 'SP',
-        zipCode: '01234-890',
         contact: 'Maria Souza',
-        specialties: ['HARDWARE', 'REDE']
+        categories: JSON.stringify(['HARDWARE', 'REDE'])
       }
     })
 
