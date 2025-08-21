@@ -192,13 +192,15 @@ export async function POST(
     const { selectedQuoteId } = body
 
     // Verificar autenticação
-    const { user } = await verifyAuth(request)
-    if (!user) {
+    const authResult = await verifyAuth(request)
+    if (authResult.error || !authResult.user) {
       return NextResponse.json(
         { success: false, error: 'Não autorizado' },
         { status: 401 }
       )
     }
+
+    const user = authResult.user
 
     // Verificar se é gestor, aprovador ou admin
     if (user.role !== UserRole.GESTOR && user.role !== UserRole.APROVADOR && user.role !== UserRole.ADMIN) {
