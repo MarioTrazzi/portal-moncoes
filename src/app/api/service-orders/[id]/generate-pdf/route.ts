@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { UserRole } from '@prisma/client'
-import { writeFile, mkdir } from 'fs/promises'
-import { join } from 'path'
 
 /**
  * Gera HTML formatado para o PDF do orçamento
@@ -40,6 +38,7 @@ function generatePDFHTML(data: any): string {
         .quotes-table th { background-color: #f2f2f2; }
         .signature-area { margin-top: 50px; }
         .signature-line { border-top: 1px solid #000; width: 300px; margin: 30px auto; text-align: center; padding-top: 5px; }
+        .selected-quote { background-color: #e8f5e8; border: 2px solid #28a745; }
     </style>
 </head>
 <body>
@@ -66,11 +65,6 @@ function generatePDFHTML(data: any): string {
                 <span class="info-label">Material Necessário:</span> ${data.serviceOrder.materialDescription}
             </div>
             ` : ''}
-            ${data.serviceOrder.materialJustification ? `
-            <div class="info-item" style="grid-column: 1 / -1;">
-                <span class="info-label">Justificativa:</span> ${data.serviceOrder.materialJustification}
-            </div>
-            ` : ''}
         </div>
     </div>
 
@@ -86,29 +80,12 @@ function generatePDFHTML(data: any): string {
             <div class="info-item">
                 <span class="info-label">Departamento:</span> ${data.requester.department || 'N/A'}
             </div>
-            <div class="info-item">
-                <span class="info-label">Localização:</span> ${data.requester.location || 'N/A'}
-            </div>
         </div>
     </div>
 
-    ${data.technician.name ? `
+    ${data.quotes.length > 0 ? `
     <div class="section">
-        <h3>Técnico Responsável</h3>
-        <div class="info-grid">
-            <div class="info-item">
-                <span class="info-label">Nome:</span> ${data.technician.name}
-            </div>
-            <div class="info-item">
-                <span class="info-label">Email:</span> ${data.technician.email}
-            </div>
-        </div>
-    </div>
-    ` : ''}
-
-    <div class="section">
-        <h3>Orçamentos Recebidos</h3>
-        ${data.quotes.length > 0 ? `
+        <h3>${data.quotes.length === 1 ? 'Orçamento Selecionado' : 'Orçamentos Recebidos'}</h3>
         <table class="quotes-table">
             <thead>
                 <tr>
@@ -121,33 +98,29 @@ function generatePDFHTML(data: any): string {
             </thead>
             <tbody>
                 ${data.quotes.map((quote: any) => `
-                <tr>
+                <tr class="${data.quotes.length === 1 ? 'selected-quote' : ''}">
                     <td>${quote.supplier.name}</td>
                     <td>${quote.supplier.cnpj}</td>
                     <td>${quote.supplier.contact}<br><small>${quote.supplier.phone}</small></td>
                     <td>${quote.deliveryTime || 'N/A'}</td>
                     <td><strong>${formatCurrency(quote.totalValue)}</strong></td>
                 </tr>
+                ${quote.items && quote.items.length > 0 ? `
+                <tr>
+                    <td colspan="5">
+                        <strong>Itens:</strong><br>
+                        ${quote.items.map((item: any) => 
+                          `${item.description} - Qtd: ${item.quantity} - ${formatCurrency(item.totalPrice)}`
+                        ).join('<br>')}
+                        ${quote.observations ? `<br><br><strong>Observações:</strong> ${quote.observations}` : ''}
+                    </td>
+                </tr>
+                ` : ''}
                 `).join('')}
             </tbody>
         </table>
-        <p><strong>Menor orçamento: ${formatCurrency(Math.min(...data.quotes.map((q: any) => q.totalValue)))}</strong></p>
-        ` : ''}
-        
-        ${data.attachments.length > 0 ? `
-        <div>
-            <h4>Documentos de Orçamento Anexados:</h4>
-            <ul>
-                ${data.attachments.map((att: any) => `
-                <li>${att.originalName} (${(att.size / 1024).toFixed(1)} KB)</li>
-                `).join('')}
-            </ul>
-            <p><em>Os orçamentos foram recebidos por email e anexados ao sistema.</em></p>
-        </div>
-        ` : ''}
-        
-        ${data.quotes.length === 0 && data.attachments.length === 0 ? '<p>Nenhum orçamento disponível</p>' : ''}
     </div>
+    ` : ''}
 
     <div class="section">
         <h3>Informações da Geração</h3>
@@ -178,21 +151,17 @@ function generatePDFHTML(data: any): string {
   `
 }
 
-/**
- * Gera PDF do orçamento para aprovação do prefeito
- * Apenas aprovadores podem gerar PDFs
- */
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    // Obter dados do request (orçamento selecionado)
-    const body = await request.json().catch(() => ({}))
+    console.log('=== NOVA API GENERATE PDF ===')
+    
+    // Obter dados do request
+    const body = await req.json().catch(() => ({}))
     const { selectedQuoteId } = body
+    console.log('Orçamento selecionado:', selectedQuoteId)
 
     // Verificar autenticação
-    const authResult = await verifyAuth(request)
+    const authResult = await verifyAuth(req)
     if (authResult.error || !authResult.user) {
       return NextResponse.json(
         { success: false, error: 'Não autorizado' },
@@ -201,12 +170,9 @@ export async function POST(
     }
 
     const user = authResult.user
-
-    console.log('Iniciando geração de PDF para OS:', params.id)
     console.log('Usuário autenticado:', user.email, user.role)
-    console.log('Orçamento selecionado:', selectedQuoteId)
 
-    // Verificar se é gestor, aprovador ou admin
+    // Verificar permissões
     if (user.role !== UserRole.GESTOR && user.role !== UserRole.APROVADOR && user.role !== UserRole.ADMIN) {
       return NextResponse.json(
         { success: false, error: 'Apenas gestores e aprovadores podem gerar PDFs' },
@@ -214,11 +180,9 @@ export async function POST(
       )
     }
 
-    // Buscar a OS com orçamentos
-    let serviceOrder
-    try {
-      console.log('Buscando OS no banco de dados...')
-      serviceOrder = await prisma.serviceOrder.findUnique({
+    // Buscar OS
+    console.log('Buscando OS...')
+    const serviceOrder = await prisma.serviceOrder.findUnique({
       where: { id: params.id },
       include: {
         createdBy: {
@@ -233,46 +197,21 @@ export async function POST(
             }
           }
         },
-        assignedTo: {
-          select: {
-            name: true,
-            email: true
-          }
-        },
         quotes: {
           include: {
             supplier: {
               select: {
                 name: true,
                 cnpj: true,
-                email: true,
+                contact: true,
                 phone: true,
-                contact: true
+                email: true
               }
             }
-          },
-          orderBy: {
-            totalValue: 'asc'
-          }
-        },
-        attachments: {
-          select: {
-            id: true,
-            originalName: true,
-            type: true,
-            size: true
           }
         }
       }
     })
-    console.log('OS encontrada:', serviceOrder ? 'Sim' : 'Não')
-    } catch (error) {
-      console.error('Erro ao buscar OS:', error)
-      return NextResponse.json(
-        { success: false, error: 'Erro ao buscar OS no banco de dados' },
-        { status: 500 }
-      )
-    }
 
     if (!serviceOrder) {
       return NextResponse.json(
@@ -281,36 +220,17 @@ export async function POST(
       )
     }
 
-    // Verificar se a OS está no status correto
-    if (serviceOrder.status !== 'AGUARDANDO_ORCAMENTO' && serviceOrder.status !== 'ORCAMENTOS_RECEBIDOS') {
-      return NextResponse.json(
-        { success: false, error: 'OS não está no status apropriado para gerar PDF' },
-        { status: 400 }
-      )
-    }
+    console.log('OS encontrada:', serviceOrder.number)
+    console.log('Total de orçamentos:', serviceOrder.quotes.length)
 
-    // Para demonstração, permitir geração de PDF mesmo sem orçamentos formais
-    // Em produção, isso seria baseado em orçamentos reais recebidos por email/sistema
-    const hasQuotes = serviceOrder.quotes.length > 0
-    const hasAttachments = serviceOrder.attachments.some(att => 
-      att.type === 'DOCUMENT' && 
-      (att.originalName.toLowerCase().includes('orçamento') || 
-       att.originalName.toLowerCase().includes('orcamento') ||
-       att.originalName.toLowerCase().includes('proposta'))
-    )
+    // Filtrar orçamento se especificado
+    const filteredQuotes = selectedQuoteId 
+      ? serviceOrder.quotes.filter(q => q.id === selectedQuoteId)
+      : serviceOrder.quotes
 
-    // Se não tem orçamentos formais, verificar se tem anexos de orçamento
-    if (!hasQuotes && !hasAttachments) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: 'Não há orçamentos disponíveis. Aguarde o recebimento dos orçamentos dos fornecedores ou anexe os orçamentos recebidos por email.' 
-        },
-        { status: 400 }
-      )
-    }
+    console.log('Orçamentos filtrados:', filteredQuotes.length)
 
-    // Gerar estrutura do PDF (HTML que pode ser convertido para PDF)
+    // Preparar dados para o PDF
     const pdfData = {
       serviceOrder: {
         id: serviceOrder.id,
@@ -318,7 +238,6 @@ export async function POST(
         title: serviceOrder.title,
         description: serviceOrder.description,
         materialDescription: serviceOrder.materialDescription,
-        materialJustification: serviceOrder.materialJustification,
         priority: serviceOrder.priority,
         createdAt: serviceOrder.createdAt,
       },
@@ -326,71 +245,42 @@ export async function POST(
         name: serviceOrder.createdBy.name,
         email: serviceOrder.createdBy.email,
         department: serviceOrder.createdBy.department?.name,
-        location: serviceOrder.createdBy.department?.location,
       },
-      technician: {
-        name: serviceOrder.assignedTo?.name,
-        email: serviceOrder.assignedTo?.email,
-      },
-      quotes: serviceOrder.quotes
-        .filter(quote => selectedQuoteId ? quote.id === selectedQuoteId : true)
-        .map(quote => ({
-          id: quote.id,
-          supplier: {
-            name: quote.supplier.name,
-            cnpj: quote.supplier.cnpj,
-            contact: quote.supplier.contact,
-            phone: quote.supplier.phone,
-            email: quote.supplier.email,
-          },
-          items: quote.items,
-          totalValue: quote.totalValue,
-          deliveryTime: quote.deliveryTime,
-          validity: quote.validity,
-          observations: quote.observations,
-        })),
-      attachments: serviceOrder.attachments
-        .filter((att: any) => att.type === 'DOCUMENT')
-        .map((att: any) => ({
-          id: att.id,
-          originalName: att.originalName,
-          size: att.size
-        })),
+      quotes: filteredQuotes.map(quote => ({
+        id: quote.id,
+        supplier: {
+          name: quote.supplier.name,
+          cnpj: quote.supplier.cnpj,
+          contact: quote.supplier.contact,
+          phone: quote.supplier.phone,
+          email: quote.supplier.email,
+        },
+        items: quote.items || [],
+        totalValue: quote.totalValue,
+        deliveryTime: quote.deliveryTime,
+        validity: quote.validity,
+        observations: quote.observations,
+      })),
       generatedAt: new Date(),
       generatedBy: user.name,
     }
 
-    // Gerar conteúdo HTML do PDF
+    // Gerar conteúdo HTML
     const htmlContent = generatePDFHTML(pdfData)
-
-    // Criar diretório de uploads se não existir
-    const uploadsDir = join(process.cwd(), 'uploads', 'generated-pdfs')
-    try {
-      await mkdir(uploadsDir, { recursive: true })
-    } catch (error) {
-      // Diretório já existe
-    }
 
     // Gerar nome único do arquivo
     const timestamp = Date.now()
-    const fileName = `orcamento-os-${serviceOrder.number}-${timestamp}.pdf`
-    const filePath = join(uploadsDir, fileName)
-
-    // Por enquanto, salvar como HTML (em uma implementação real, seria PDF)
-    // Para gerar PDF real, seria necessário usar bibliotecas como puppeteer ou jsPDF
-    const htmlFileName = `orcamento-os-${serviceOrder.number}-${timestamp}.html`
-    const htmlFilePath = join(uploadsDir, htmlFileName)
-    await writeFile(htmlFilePath, htmlContent, 'utf8')
+    const fileName = `orcamento-os-${serviceOrder.number}-${timestamp}.html`
 
     // Salvar como anexo na OS
     const attachment = await prisma.attachment.create({
       data: {
         serviceOrderId: serviceOrder.id,
-        filename: htmlFileName, // Usar HTML por enquanto
+        filename: fileName,
         originalName: `Orçamento OS ${serviceOrder.number}.html`,
         mimeType: 'text/html',
         size: Buffer.byteLength(htmlContent, 'utf8'),
-        path: `uploads/generated-pdfs/${htmlFileName}`,
+        path: `uploads/generated-pdfs/${fileName}`,
         type: 'DOCUMENT',
         description: 'PDF de orçamento gerado para aprovação do prefeito',
       }
@@ -402,7 +292,7 @@ export async function POST(
         serviceOrderId: params.id,
         userId: user.id,
         action: 'PDF_GERADO',
-        details: `PDF de orçamento gerado: ${htmlFileName}`,
+        details: `PDF de orçamento gerado: ${fileName}`,
       }
     })
 
@@ -411,15 +301,18 @@ export async function POST(
       data: {
         attachment,
         message: 'PDF gerado com sucesso e salvo como anexo.',
-        fileName: htmlFileName
+        fileName: fileName,
+        selectedQuoteId: selectedQuoteId,
+        quotesIncluded: filteredQuotes.length
       }
     })
 
   } catch (error) {
-    console.error('Erro ao gerar PDF:', error)
-    return NextResponse.json(
-      { success: false, error: 'Erro interno do servidor' },
-      { status: 500 }
-    )
+    console.error('Erro na nova API:', error)
+    return NextResponse.json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error instanceof Error ? error.message : 'Erro desconhecido'
+    }, { status: 500 })
   }
 }
