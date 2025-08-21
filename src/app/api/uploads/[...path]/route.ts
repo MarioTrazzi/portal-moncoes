@@ -53,6 +53,8 @@ function getContentType(extension: string): string {
     'xls': 'application/vnd.ms-excel',
     'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'txt': 'text/plain',
+    'html': 'text/html',
+    'htm': 'text/html',
   }
   
   return types[extension] || 'application/octet-stream'

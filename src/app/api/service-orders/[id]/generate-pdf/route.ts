@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { UserRole } from '@prisma/client'
+import { writeFile, mkdir } from 'fs/promises'
+import path from 'path'
 
 /**
  * Gera HTML formatado para o PDF do orçamento
@@ -271,6 +273,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // Gerar nome único do arquivo
     const timestamp = Date.now()
     const fileName = `orcamento-os-${serviceOrder.number}-${timestamp}.html`
+    const relativePath = `generated-pdfs/${fileName}`
+    const absolutePath = path.join(process.cwd(), 'uploads', relativePath)
+
+    // Criar diretório se não existir
+    const uploadDir = path.dirname(absolutePath)
+    await mkdir(uploadDir, { recursive: true })
+
+    // Salvar arquivo fisicamente
+    await writeFile(absolutePath, htmlContent, 'utf8')
+    console.log('Arquivo HTML salvo em:', absolutePath)
 
     // Salvar como anexo na OS
     const attachment = await prisma.attachment.create({
@@ -280,9 +292,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         originalName: `Orçamento OS ${serviceOrder.number}.html`,
         mimeType: 'text/html',
         size: Buffer.byteLength(htmlContent, 'utf8'),
-        path: `uploads/generated-pdfs/${fileName}`,
+        path: relativePath,
         type: 'DOCUMENT',
-        description: 'PDF de orçamento gerado para aprovação do prefeito',
+        description: selectedQuoteId 
+          ? 'PDF de orçamento selecionado para aprovação do prefeito'
+          : 'PDF com todos os orçamentos para aprovação do prefeito',
       }
     })
 
